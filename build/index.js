@@ -122,7 +122,7 @@ function buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases, prop
       start_date: newPhasesBounds[i],
       end_date: newPhasesBounds[i + 1]
     };
-    const latestPrecedingPhase = existingPhases.toReversed().find((existingPhase) => existingPhase.start_date <= newPhaseBounds.start_date);
+    const latestPrecedingPhase = [...existingPhases].reverse().find((existingPhase) => existingPhase.start_date <= newPhaseBounds.start_date);
     if (!latestPrecedingPhase) {
       throw new Error(`No previous phase to base the new phase on`);
     }
