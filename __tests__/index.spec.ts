@@ -2,8 +2,9 @@ import { beforeAll, describe, expect, it } from "bun:test";
 import { getUnixTime, addDays, addMonths, endOfDay, addWeeks } from "date-fns";
 import type Stripe from "stripe";
 import timekeeper from "timekeeper";
-import { scheduleSubscriptionUpdates } from "..";
+
 import { assertPhasesAreContinuous } from "../utils";
+import { scheduleSubscriptionUpdates } from "../index";
 
 const DEFAULT_PHASE_PROPERTIES: Stripe.SubscriptionSchedule.Phase = {
   items: [],
