@@ -41,5 +41,5 @@ bun test
 To build:
 
 ```bash
-bun build ./index.ts --outdir ./build
+bun run build
 ```
