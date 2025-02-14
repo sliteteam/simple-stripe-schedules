@@ -121,6 +121,7 @@ function convertAutomaticTaxToUpdateParams(automatic_tax) {
   const account = typeof liability.account === "string" ? liability.account : liability.account?.id;
   return {
     ...automatic_tax,
+    disabled_reason: undefined,
     liability: {
       ...automatic_tax.liability,
       account,
