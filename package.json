@@ -1,0 +1,18 @@
+{
+  "name": "simple-stripe-schedules",
+  "version": "0.1.0",
+  "module": "index.ts",
+  "main": "build/index.js",
+  "type": "module",
+  "dependencies": {
+    "@types/stripe": "latest"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "date-fns": "^4.1.0",
+    "timekeeper": "^2.3.1"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
