@@ -1,3 +1,38 @@
+var __defProp = Object.defineProperty;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __moduleCache = /* @__PURE__ */ new WeakMap;
+var __toCommonJS = (from) => {
+  var entry = __moduleCache.get(from), desc;
+  if (entry)
+    return entry;
+  entry = __defProp({}, "__esModule", { value: true });
+  if (from && typeof from === "object" || typeof from === "function")
+    __getOwnPropNames(from).map((key) => !__hasOwnProp.call(entry, key) && __defProp(entry, key, {
+      get: () => from[key],
+      enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable
+    }));
+  __moduleCache.set(from, entry);
+  return entry;
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, {
+      get: all[name],
+      enumerable: true,
+      configurable: true,
+      set: (newValue) => all[name] = () => newValue
+    });
+};
+
+// index.ts
+var exports_simple_stripe_schedules = {};
+__export(exports_simple_stripe_schedules, {
+  scheduleSubscriptionUpdates: () => scheduleSubscriptionUpdates
+});
+module.exports = __toCommonJS(exports_simple_stripe_schedules);
+
 // utils.ts
 function getPhaseUpdateParamsFromExistingPhase(phase, {
   quantity,
@@ -124,6 +159,3 @@ function scheduleSubscriptionUpdates({
   const phasesWithUpdatedProperties = applyPropertyUpdatesOnNewPhases(newPhases, propertyUpdates);
   return mergeAdjacentPhaseUpdates(phasesWithUpdatedProperties);
 }
-export {
-  scheduleSubscriptionUpdates
-};
