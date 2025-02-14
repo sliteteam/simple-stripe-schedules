@@ -3,8 +3,8 @@ import { getUnixTime, addDays, addMonths, endOfDay, addWeeks } from "date-fns";
 import type Stripe from "stripe";
 import timekeeper from "timekeeper";
 
-import { assertPhasesAreContinuous } from "../utils";
-import { scheduleSubscriptionUpdates } from "../index";
+import { assertPhasesAreContinuous } from "../src/utils";
+import { scheduleSubscriptionUpdates } from "../src/index";
 
 const DEFAULT_PHASE_PROPERTIES: Stripe.SubscriptionSchedule.Phase = {
   items: [],
@@ -77,7 +77,7 @@ describe("buildPhasesForQuantityUpdates", () => {
       existingPhases,
       propertyUpdates: [
         {
-          newQuantity: 6,
+          quantity: 6,
           scheduled_at: subscription_renews_at,
         },
       ],
@@ -140,7 +140,7 @@ describe("buildPhasesForQuantityUpdates", () => {
       existingPhases,
       propertyUpdates: [
         {
-          newQuantity: 6,
+          quantity: 6,
           scheduled_at: subscription_renews_at,
         },
       ],
@@ -188,15 +188,15 @@ describe("buildPhasesForQuantityUpdates", () => {
       existingPhases,
       propertyUpdates: [
         {
-          newQuantity: 6,
+          quantity: 6,
           scheduled_at: first_update_at,
         },
         {
-          newQuantity: 12,
+          quantity: 12,
           scheduled_at: second_update_at,
         },
         {
-          newQuantity: 42,
+          quantity: 42,
           scheduled_at: third_update_at,
         },
       ],
@@ -251,11 +251,11 @@ describe("buildPhasesForQuantityUpdates", () => {
       existingPhases,
       propertyUpdates: [
         {
-          newQuantity: 6,
+          quantity: 6,
           scheduled_at: first_update_at,
         },
         {
-          newQuantity: 42,
+          quantity: 42,
           scheduled_at: second_update_at,
         },
       ],
@@ -302,7 +302,7 @@ describe("buildPhasesForQuantityUpdates", () => {
         existingPhases,
         propertyUpdates: [
           {
-            newQuantity: 6,
+            quantity: 6,
             scheduled_at: update_at,
           },
         ],
@@ -357,11 +357,11 @@ describe("buildPhasesForQuantityUpdates", () => {
       existingPhases,
       propertyUpdates: [
         {
-          newQuantity: 10,
+          quantity: 10,
           scheduled_at: current_day_ends_at,
         },
         {
-          newQuantity: 6,
+          quantity: 6,
           scheduled_at: subscription_renews_at,
         },
       ],
@@ -403,11 +403,11 @@ describe("buildPhasesForQuantityUpdates", () => {
       existingPhases,
       propertyUpdates: [
         {
-          newQuantity: 10,
+          quantity: 10,
           scheduled_at: current_day_ends_at,
         },
         {
-          newQuantity: 6,
+          quantity: 6,
           scheduled_at: subscription_renews_at,
         },
       ],
@@ -463,11 +463,11 @@ describe("buildPhasesForQuantityUpdates", () => {
       existingPhases,
       propertyUpdates: [
         {
-          newQuantity: 15,
+          quantity: 15,
           scheduled_at: current_day_ends_at,
         },
         {
-          newQuantity: 6,
+          quantity: 6,
           scheduled_at: subscription_renews_at,
         },
       ],

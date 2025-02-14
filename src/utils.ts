@@ -1,4 +1,8 @@
 import type Stripe from "stripe";
+import {
+  convertPhaseItemToUpdateParams,
+  convertPhaseToPhaseUpdateParams,
+} from "./conversion";
 
 export function getPhaseUpdateParamsFromExistingPhase(
   phase:
@@ -19,22 +23,25 @@ export function getPhaseUpdateParamsFromExistingPhase(
   if (phase.items.length > 1) {
     throw new Error(`We don't support multi-items phases yet`);
   }
-  const phaseItem = phase.items[0];
 
-  const planId =
-    typeof phaseItem.plan === "string" ? phaseItem.plan : phaseItem.plan?.id;
-  const priceId =
-    typeof phaseItem.price === "string" ? phaseItem.price : phaseItem.price?.id;
+  const phaseUpdateParams = convertPhaseToPhaseUpdateParams(phase);
+  const phaseItemUpdateParams = convertPhaseItemToUpdateParams(phase.items[0]);
 
   const result = {
+    ...phaseUpdateParams,
     items: [
       {
-        plan: priceOrPlan ?? planId,
-        price: priceOrPlan ?? priceId,
-        quantity: quantity ?? phaseItem.quantity,
+        ...phaseItemUpdateParams,
+        ...(priceOrPlan && {
+          plan: priceOrPlan,
+          price: priceOrPlan,
+        }),
+        ...(quantity !== undefined && {
+          quantity,
+        }),
       },
     ],
-    start_date: startDate ?? phase.start_date,
+    ...(startDate && { start_date: startDate }),
     end_date: endDate === null ? undefined : endDate ?? phase.end_date,
   };
   return result;
@@ -85,8 +92,9 @@ export function mergeAdjacentPhaseUpdates(
 }
 
 export type ScheduledPropertyUpdates = {
-  newQuantity?: number;
-  newPrice?: string;
+  quantity?: number;
+  price?: string;
+  coupon?: string;
   scheduled_at: number;
 };
 
@@ -118,8 +126,8 @@ export function applyPropertyUpdatesOnNewPhases(
       ...propertyUpdatesScheduledForThisPhase,
     ]);
     return getPhaseUpdateParamsFromExistingPhase(phase, {
-      quantity: compiledPropertyUpdates.newQuantity,
-      priceOrPlan: compiledPropertyUpdates.newPrice,
+      quantity: compiledPropertyUpdates.quantity,
+      priceOrPlan: compiledPropertyUpdates.price,
     });
   });
 }

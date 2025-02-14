@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import type Stripe from "stripe";
 
-import { mergeAdjacentPhaseUpdates } from "../utils";
+import { mergeAdjacentPhaseUpdates } from "../src/utils";
 
 describe("mergeAdjacentPhaseUpdates", () => {
   it("Merges adjacent phases with same properties", () => {
