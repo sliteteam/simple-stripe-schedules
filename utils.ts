@@ -159,8 +159,8 @@ export function buildPhaseListFromExistingPhasesAndPropertyUpdates(
 
     // Find the latest existing phase that started before the new phase
     // We'll use it as a basis to apply new property changes
-    const latestPrecedingPhase = existingPhases
-      .toReversed()
+    const latestPrecedingPhase = [...existingPhases]
+      .reverse()
       .find(
         (existingPhase) => existingPhase.start_date <= newPhaseBounds.start_date
       );
