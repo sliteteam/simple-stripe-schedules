@@ -172,10 +172,10 @@ function convertAutomaticTaxToUpdateParams(
     ...automatic_tax,
     // @ts-ignore
     disabled_reason: undefined,
+    // @ts-ignore
     liability: {
       ...automatic_tax.liability,
       account,
-      type: "account",
     },
   };
 }

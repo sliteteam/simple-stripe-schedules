@@ -124,8 +124,7 @@ function convertAutomaticTaxToUpdateParams(automatic_tax) {
     disabled_reason: undefined,
     liability: {
       ...automatic_tax.liability,
-      account,
-      type: "account"
+      account
     }
   };
 }
