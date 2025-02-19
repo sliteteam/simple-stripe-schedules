@@ -5,13 +5,14 @@
   "main": "build/index.js",
   "type": "module",
   "scripts": {
-    "build": "bun build ./src/index.ts --outdir ./build --target node --format cjs"
+    "build": "bun run ./build.ts"
   },
   "dependencies": {
     "@types/stripe": "latest"
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "bun-plugin-dts": "^0.3.0",
     "date-fns": "^4.1.0",
     "timekeeper": "^2.3.1"
   },
