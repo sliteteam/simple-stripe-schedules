@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "module": "index.ts",
   "main": "build/index.js",
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "build": "bun run ./build.ts"
   },
