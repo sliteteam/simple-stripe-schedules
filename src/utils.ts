@@ -3,6 +3,7 @@ import {
   convertPhaseItemToUpdateParams,
   convertPhaseToPhaseUpdateParams,
 } from "./conversion";
+import type { ScheduledPropertyUpdates } from "./types";
 
 export function getPhaseUpdateParamsFromExistingPhase(
   phase:
@@ -90,13 +91,6 @@ export function mergeAdjacentPhaseUpdates(
   }
   return mergedPhases;
 }
-
-export type ScheduledPropertyUpdates = {
-  quantity?: number;
-  price?: string;
-  coupon?: string;
-  scheduled_at: number;
-};
 
 export function compilePropertyUpdates(
   propertyUpdates: ScheduledPropertyUpdates[]

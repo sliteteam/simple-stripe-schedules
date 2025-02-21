@@ -4,8 +4,8 @@ import {
   buildPhaseListFromExistingPhasesAndPropertyUpdates,
   getPhaseUpdateParamsFromExistingPhase,
   mergeAdjacentPhaseUpdates,
-  type ScheduledPropertyUpdates,
 } from "./utils";
+import type { ScheduledPropertyUpdates } from "./types";
 
 /**
  * Schedules a value change for a property (quantity, price...) at a specific time.
