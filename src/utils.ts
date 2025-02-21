@@ -201,3 +201,28 @@ export function buildPhaseListFromExistingPhasesAndPropertyUpdates(
 
   return newPhases;
 }
+
+export function printPhases(
+  phases:
+    | Stripe.SubscriptionScheduleUpdateParams.Phase[]
+    | Stripe.SubscriptionSchedule.Phase[]
+) {
+  let index = 0;
+  for (const phase of phases) {
+    const start_date =
+      phase.start_date === "now"
+        ? new Date()
+        : new Date((phase.start_date ?? 0) * 1000);
+    const end_date =
+      phase.end_date === "now"
+        ? new Date()
+        : phase.end_date
+        ? new Date(phase.end_date * 1000)
+        : "∞";
+    console.log(`Phase #${index} ${start_date} -> ${end_date}`);
+    for (const item of phase.items) {
+      console.log(`  ${item.plan} x ${item.quantity}`);
+    }
+    index += 1;
+  }
+}
