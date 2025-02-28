@@ -191,6 +191,13 @@ function assertPhasesAreContinuous(phases) {
     lastPhaseEndDate = phase.end_date;
   }
 }
+function assertHasNoPastPhases(phases) {
+  for (const phase of phases) {
+    if (phase.end_date && (phase.end_date === "now" || phase.end_date < new Date().getTime() / 1000)) {
+      throw new Error(`Phase ending at "${phase.end_date}" ends now or in the past, it will be rejected by Stripe`);
+    }
+  }
+}
 function mergeAdjacentPhaseUpdates(phases) {
   const mergedPhases = [];
   let previousPhase;
@@ -203,6 +210,9 @@ function mergeAdjacentPhaseUpdates(phases) {
     }
   }
   return mergedPhases;
+}
+function removePastPhases(phases) {
+  return phases.filter((phase) => phase.end_date === undefined || phase.end_date !== "now" && phase.end_date > new Date().getTime() / 1000);
 }
 function compilePropertyUpdates(propertyUpdates) {
   const result = propertyUpdates.reduce((acc, propertyUpdate) => ({ ...acc, ...propertyUpdate }), propertyUpdates[0]);
@@ -229,9 +239,6 @@ function buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases, prop
   const phaseBounds = new Set(existingPhases.reduce((acc, phase) => [...acc, phase.start_date, phase.end_date], []));
   const propertyUpdateTimestamps = propertyUpdates.map((update) => update.scheduled_at);
   for (const propertyUpdate of propertyUpdates) {
-    if (propertyUpdate.scheduled_at < new Date().getTime() / 1000) {
-      throw new Error(`Can't schedule property update in the past`);
-    }
     phaseBounds.add(propertyUpdate.scheduled_at);
   }
   const newPhasesBounds = [...phaseBounds].sort();
@@ -243,7 +250,10 @@ function buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases, prop
       start_date: newPhasesBounds[i],
       end_date: newPhasesBounds[i + 1]
     };
-    const latestPrecedingPhase = [...existingPhases].reverse().find((existingPhase) => existingPhase.start_date <= newPhaseBounds.start_date);
+    let latestPrecedingPhase = [...existingPhases].reverse().find((existingPhase) => existingPhase.start_date <= newPhaseBounds.start_date);
+    if (!latestPrecedingPhase) {
+      latestPrecedingPhase = existingPhases.at(0);
+    }
     if (!latestPrecedingPhase) {
       throw new Error(`No previous phase to base the new phase on`);
     }
@@ -278,5 +288,9 @@ function scheduleSubscriptionUpdates({
   propertyUpdates.sort((a, b) => a.scheduled_at - b.scheduled_at);
   const newPhases = buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases ?? [], propertyUpdates);
   const phasesWithUpdatedProperties = applyPropertyUpdatesOnNewPhases(newPhases, propertyUpdates);
-  return mergeAdjacentPhaseUpdates(phasesWithUpdatedProperties);
+  const filteredPhases = removePastPhases(phasesWithUpdatedProperties);
+  const finalPhases = mergeAdjacentPhaseUpdates(filteredPhases);
+  assertHasNoPastPhases(finalPhases);
+  assertPhasesAreContinuous(finalPhases);
+  return finalPhases;
 }
