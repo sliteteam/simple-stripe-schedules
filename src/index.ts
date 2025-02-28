@@ -1,9 +1,12 @@
 import type Stripe from "stripe";
 import {
   applyPropertyUpdatesOnNewPhases,
+  assertHasNoPastPhases,
+  assertPhasesAreContinuous,
   buildPhaseListFromExistingPhasesAndPropertyUpdates,
   getPhaseUpdateParamsFromExistingPhase,
   mergeAdjacentPhaseUpdates,
+  removePastPhases,
 } from "./utils";
 import type { ScheduledPropertyUpdates } from "./types";
 
@@ -52,7 +55,16 @@ export function scheduleSubscriptionUpdates({
     propertyUpdates
   );
 
-  // Step 3: Merge identical adjacent phases
+  // Step 3: Remove past phases
 
-  return mergeAdjacentPhaseUpdates(phasesWithUpdatedProperties);
+  const filteredPhases = removePastPhases(phasesWithUpdatedProperties);
+
+  // Step 4: Merge identical adjacent phases
+
+  const finalPhases = mergeAdjacentPhaseUpdates(filteredPhases);
+
+  assertHasNoPastPhases(finalPhases);
+  assertPhasesAreContinuous(finalPhases);
+
+  return finalPhases;
 }

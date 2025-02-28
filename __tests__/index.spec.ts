@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from "bun:test";
+import { beforeAll, beforeEach, describe, expect, it } from "bun:test";
 import { getUnixTime, addDays, addMonths, endOfDay, addWeeks } from "date-fns";
 import type Stripe from "stripe";
 import timekeeper from "timekeeper";
@@ -165,7 +165,7 @@ describe("buildPhasesForQuantityUpdates", () => {
   it("Updates quantity with more updates than existing phases", () => {
     const subscription_started_at = getUnixTime(addDays(new Date(), -20));
     const subscription_renews_at = getUnixTime(addDays(new Date(), 10));
-    const current_day_ends_at = getUnixTime(endOfDay(new Date()));
+
     const currentPhase: Stripe.SubscriptionSchedule.Phase = {
       ...DEFAULT_PHASE_PROPERTIES,
       start_date: subscription_started_at,
@@ -278,7 +278,7 @@ describe("buildPhasesForQuantityUpdates", () => {
     expect(updatedPhases[2].end_date).toBeUndefined();
   });
 
-  it("Throws when updating quantity in the past", () => {
+  it("Does not throw when updating quantity in the past", () => {
     const subscription_started_at = getUnixTime(addDays(new Date(), -20));
     const subscription_renews_at = getUnixTime(addDays(new Date(), 10));
     const currentPhase: Stripe.SubscriptionSchedule.Phase = {
@@ -295,19 +295,31 @@ describe("buildPhasesForQuantityUpdates", () => {
 
     const existingPhases = [currentPhase];
 
-    // Schedule update for 1 week before now
-    const update_at = getUnixTime(addWeeks(new Date(), -1));
+    // Schedule update for 1 week before now (during current phase)
     expect(() =>
       scheduleSubscriptionUpdates({
         existingPhases,
         propertyUpdates: [
           {
             quantity: 6,
-            scheduled_at: update_at,
+            scheduled_at: getUnixTime(addWeeks(new Date(), -1)),
           },
         ],
       })
-    ).toThrow();
+    ).not.toThrow();
+
+    // Schedule update for 1 month before now (before current phase)
+    expect(() =>
+      scheduleSubscriptionUpdates({
+        existingPhases,
+        propertyUpdates: [
+          {
+            quantity: 6,
+            scheduled_at: getUnixTime(addMonths(new Date(), -1)),
+          },
+        ],
+      })
+    ).not.toThrow();
   });
 
   it("Handles daily proration update to the same quantity + renewal change", () => {

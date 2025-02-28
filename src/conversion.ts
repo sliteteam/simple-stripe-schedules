@@ -153,8 +153,6 @@ function convertBillingThresholdsToUpdateParams(
   };
 }
 
-// Received unknown parameter: phases[0][automatic_tax][disabled_reason]
-
 function convertAutomaticTaxToUpdateParams(
   automatic_tax:
     | Stripe.SubscriptionSchedule.Phase.AutomaticTax

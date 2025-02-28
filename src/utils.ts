@@ -67,8 +67,26 @@ export function assertPhasesAreContinuous(
   }
 }
 
+export function assertHasNoPastPhases(
+  phases: Pick<
+    Stripe.SubscriptionScheduleUpdateParams.Phase,
+    "end_date" | "start_date"
+  >[]
+) {
+  for (const phase of phases) {
+    if (
+      phase.end_date &&
+      (phase.end_date === "now" || phase.end_date < new Date().getTime() / 1000)
+    ) {
+      throw new Error(
+        `Phase ending at "${phase.end_date}" ends now or in the past, it will be rejected by Stripe`
+      );
+    }
+  }
+}
+
 /**
- * This function will merge adjacent phases that have the same properties
+ * Merges adjacent phases that have the same properties
  * @param phases
  */
 export function mergeAdjacentPhaseUpdates(
@@ -90,6 +108,20 @@ export function mergeAdjacentPhaseUpdates(
     }
   }
   return mergedPhases;
+}
+
+/**
+ * Returns an array of phases, without already past phases
+ * @param phases
+ */
+export function removePastPhases(
+  phases: Stripe.SubscriptionScheduleUpdateParams.Phase[]
+): Stripe.SubscriptionScheduleUpdateParams.Phase[] {
+  return phases.filter(
+    (phase) =>
+      phase.end_date === undefined ||
+      (phase.end_date !== "now" && phase.end_date > new Date().getTime() / 1000)
+  );
 }
 
 export function compilePropertyUpdates(
@@ -139,13 +171,11 @@ export function buildPhaseListFromExistingPhasesAndPropertyUpdates(
       []
     )
   );
+
   const propertyUpdateTimestamps = propertyUpdates.map(
     (update) => update.scheduled_at
   );
   for (const propertyUpdate of propertyUpdates) {
-    if (propertyUpdate.scheduled_at < new Date().getTime() / 1000) {
-      throw new Error(`Can't schedule property update in the past`);
-    }
     phaseBounds.add(propertyUpdate.scheduled_at);
   }
   const newPhasesBounds = [...phaseBounds].sort();
@@ -161,11 +191,17 @@ export function buildPhaseListFromExistingPhasesAndPropertyUpdates(
 
     // Find the latest existing phase that started before the new phase
     // We'll use it as a basis to apply new property changes
-    const latestPrecedingPhase = [...existingPhases]
+    let latestPrecedingPhase = [...existingPhases]
       .reverse()
       .find(
         (existingPhase) => existingPhase.start_date <= newPhaseBounds.start_date
       );
+
+    if (!latestPrecedingPhase) {
+      // This means we're scheduling an update before the first existing phase
+      // So we'll use the first existing phase as a basis
+      latestPrecedingPhase = existingPhases.at(0);
+    }
 
     if (!latestPrecedingPhase) {
       throw new Error(`No previous phase to base the new phase on`);
