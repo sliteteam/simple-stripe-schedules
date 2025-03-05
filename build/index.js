@@ -151,8 +151,7 @@ function convertPhaseItemToUpdateParams(item) {
 
 // src/utils.ts
 function getPhaseUpdateParamsFromExistingPhase(phase, {
-  quantity,
-  priceOrPlan,
+  propertiesToApply,
   startDate,
   endDate
 } = {}) {
@@ -161,14 +160,15 @@ function getPhaseUpdateParamsFromExistingPhase(phase, {
   }
   const phaseUpdateParams = convertPhaseToPhaseUpdateParams(phase);
   const phaseItemUpdateParams = convertPhaseItemToUpdateParams(phase.items[0]);
+  const { price, quantity, proration_behavior } = propertiesToApply ?? {};
   const result = {
     ...phaseUpdateParams,
     items: [
       {
         ...phaseItemUpdateParams,
-        ...priceOrPlan && {
-          plan: priceOrPlan,
-          price: priceOrPlan
+        ...price && {
+          plan: price,
+          price
         },
         ...quantity !== undefined && {
           quantity
@@ -176,7 +176,8 @@ function getPhaseUpdateParamsFromExistingPhase(phase, {
       }
     ],
     ...startDate && { start_date: startDate },
-    end_date: endDate === null ? undefined : endDate ?? phase.end_date
+    end_date: endDate === null ? undefined : endDate ?? phase.end_date,
+    ...proration_behavior && { proration_behavior }
   };
   return result;
 }
@@ -229,8 +230,7 @@ function applyPropertyUpdatesOnNewPhases(phasesList, propertyUpdates) {
       ...propertyUpdatesScheduledForThisPhase
     ]);
     return getPhaseUpdateParamsFromExistingPhase(phase, {
-      quantity: compiledPropertyUpdates.quantity,
-      priceOrPlan: compiledPropertyUpdates.price
+      propertiesToApply: compiledPropertyUpdates
     });
   });
 }

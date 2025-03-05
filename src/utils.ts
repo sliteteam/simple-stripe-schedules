@@ -10,13 +10,11 @@ export function getPhaseUpdateParamsFromExistingPhase(
     | Stripe.SubscriptionSchedule.Phase
     | Stripe.SubscriptionScheduleUpdateParams.Phase,
   {
-    quantity,
-    priceOrPlan,
+    propertiesToApply,
     startDate,
     endDate,
   }: {
-    quantity?: number;
-    priceOrPlan?: string;
+    propertiesToApply?: Omit<ScheduledPropertyUpdates, "scheduled_at">;
     startDate?: number;
     endDate?: number | null;
   } = {}
@@ -28,14 +26,16 @@ export function getPhaseUpdateParamsFromExistingPhase(
   const phaseUpdateParams = convertPhaseToPhaseUpdateParams(phase);
   const phaseItemUpdateParams = convertPhaseItemToUpdateParams(phase.items[0]);
 
+  const { price, quantity, proration_behavior } = propertiesToApply ?? {};
+
   const result = {
     ...phaseUpdateParams,
     items: [
       {
         ...phaseItemUpdateParams,
-        ...(priceOrPlan && {
-          plan: priceOrPlan,
-          price: priceOrPlan,
+        ...(price && {
+          plan: price,
+          price: price,
         }),
         ...(quantity !== undefined && {
           quantity,
@@ -44,6 +44,7 @@ export function getPhaseUpdateParamsFromExistingPhase(
     ],
     ...(startDate && { start_date: startDate }),
     end_date: endDate === null ? undefined : endDate ?? phase.end_date,
+    ...(proration_behavior && { proration_behavior }),
   };
   return result;
 }
@@ -151,9 +152,9 @@ export function applyPropertyUpdatesOnNewPhases(
       compiledPropertyUpdates,
       ...propertyUpdatesScheduledForThisPhase,
     ]);
+
     return getPhaseUpdateParamsFromExistingPhase(phase, {
-      quantity: compiledPropertyUpdates.quantity,
-      priceOrPlan: compiledPropertyUpdates.price,
+      propertiesToApply: compiledPropertyUpdates,
     });
   });
 }

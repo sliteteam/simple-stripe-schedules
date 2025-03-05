@@ -40,7 +40,7 @@ const DEFAULT_ITEM_PROPERTIES: Stripe.SubscriptionSchedule.Phase.Item = {
   price: "price1",
 };
 
-describe("buildPhasesForQuantityUpdates", () => {
+describe("scheduleSubscriptionUpdates", () => {
   beforeAll(() => {
     timekeeper.freeze("2025-02-05T15:00:00Z");
   });
@@ -502,5 +502,52 @@ describe("buildPhasesForQuantityUpdates", () => {
     expect(updatedPhases[2].items[0].price).toBe("updatedPrice");
     expect(updatedPhases[2].start_date).toBe(subscription_renews_at);
     expect(updatedPhases[2].end_date).toBe(afterRenewalPhase.end_date);
+  });
+
+  it("Handles proration_behavior", () => {
+    const subscription_started_at = getUnixTime(addDays(new Date(), -20));
+    const subscription_renews_at = getUnixTime(addDays(new Date(), 10));
+    const current_day_ends_at = getUnixTime(endOfDay(new Date()));
+    const currentPhase: Stripe.SubscriptionSchedule.Phase = {
+      ...DEFAULT_PHASE_PROPERTIES,
+      start_date: subscription_started_at,
+      end_date: subscription_renews_at,
+      items: [
+        {
+          ...DEFAULT_ITEM_PROPERTIES,
+          quantity: 10,
+        },
+      ],
+    };
+
+    const existingPhases = [currentPhase];
+
+    const updatedPhases = scheduleSubscriptionUpdates({
+      existingPhases,
+      propertyUpdates: [
+        {
+          quantity: 15,
+          scheduled_at: current_day_ends_at,
+          proration_behavior: "none",
+        },
+      ],
+    });
+
+    expect(updatedPhases).toHaveLength(2);
+    assertPhasesAreContinuous(updatedPhases);
+
+    console.log(JSON.stringify(updatedPhases));
+
+    expect(updatedPhases[0].items[0].quantity).toBe(10);
+    expect(updatedPhases[0].items[0].price).toBe("price1");
+    expect(updatedPhases[0].start_date).toBe(subscription_started_at);
+    expect(updatedPhases[0].end_date).toBe(current_day_ends_at);
+    expect(updatedPhases[0].proration_behavior).toBe("always_invoice");
+
+    expect(updatedPhases[1].items[0].quantity).toBe(15);
+    expect(updatedPhases[1].items[0].price).toBe("price1");
+    expect(updatedPhases[1].start_date).toBe(current_day_ends_at);
+    expect(updatedPhases[1].end_date).toBe(subscription_renews_at);
+    expect(updatedPhases[1].proration_behavior).toBe("none");
   });
 });
