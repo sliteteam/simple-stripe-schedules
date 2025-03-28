@@ -536,8 +536,6 @@ describe("scheduleSubscriptionUpdates", () => {
     expect(updatedPhases).toHaveLength(2);
     assertPhasesAreContinuous(updatedPhases);
 
-    console.log(JSON.stringify(updatedPhases));
-
     expect(updatedPhases[0].items[0].quantity).toBe(10);
     expect(updatedPhases[0].items[0].price).toBe("price1");
     expect(updatedPhases[0].start_date).toBe(subscription_started_at);
@@ -549,5 +547,118 @@ describe("scheduleSubscriptionUpdates", () => {
     expect(updatedPhases[1].start_date).toBe(current_day_ends_at);
     expect(updatedPhases[1].end_date).toBe(subscription_renews_at);
     expect(updatedPhases[1].proration_behavior).toBe("none");
+  });
+
+  it("Handles cancellation in the middle of existing phases", () => {
+    const subscription_started_at = getUnixTime(addDays(new Date(), -20));
+    const subscription_renews_at = getUnixTime(addDays(new Date(), 10));
+    const current_day_ends_at = getUnixTime(endOfDay(new Date()));
+    const currentPhase: Stripe.SubscriptionSchedule.Phase = {
+      ...DEFAULT_PHASE_PROPERTIES,
+      start_date: subscription_started_at,
+      end_date: subscription_renews_at,
+      items: [
+        {
+          ...DEFAULT_ITEM_PROPERTIES,
+          quantity: 10,
+        },
+      ],
+    };
+
+    const existingPhases = [currentPhase];
+
+    const updatedPhases = scheduleSubscriptionUpdates({
+      existingPhases,
+      cancelAt: current_day_ends_at,
+    });
+
+    expect(updatedPhases).toHaveLength(1);
+    assertPhasesAreContinuous(updatedPhases);
+
+    expect(updatedPhases[0].items[0].quantity).toBe(10);
+    expect(updatedPhases[0].items[0].price).toBe("price1");
+    expect(updatedPhases[0].start_date).toBe(subscription_started_at);
+    expect(updatedPhases[0].end_date).toBe(current_day_ends_at);
+  });
+
+  it("Ignores property updates scheduled after cancellation", () => {
+    const subscription_started_at = getUnixTime(addDays(new Date(), -20));
+    const subscription_renews_at = getUnixTime(addDays(new Date(), 10));
+    const current_day_ends_at = getUnixTime(endOfDay(new Date()));
+    const currentPhase: Stripe.SubscriptionSchedule.Phase = {
+      ...DEFAULT_PHASE_PROPERTIES,
+      start_date: subscription_started_at,
+      end_date: subscription_renews_at,
+      items: [
+        {
+          ...DEFAULT_ITEM_PROPERTIES,
+          quantity: 10,
+        },
+      ],
+    };
+
+    const existingPhases = [currentPhase];
+
+    const updatedPhases = scheduleSubscriptionUpdates({
+      existingPhases,
+      propertyUpdates: [
+        {
+          quantity: 15,
+          scheduled_at: subscription_renews_at,
+          proration_behavior: "none",
+        },
+      ],
+      cancelAt: current_day_ends_at,
+    });
+
+    expect(updatedPhases).toHaveLength(1);
+    assertPhasesAreContinuous(updatedPhases);
+
+    expect(updatedPhases[0].items[0].quantity).toBe(10);
+    expect(updatedPhases[0].items[0].price).toBe("price1");
+    expect(updatedPhases[0].start_date).toBe(subscription_started_at);
+    expect(updatedPhases[0].end_date).toBe(current_day_ends_at);
+  });
+
+  it("Handles cancellation after the end of the existing phase", () => {
+    const subscription_started_at = getUnixTime(addDays(new Date(), -20));
+    const subscription_renews_at = getUnixTime(addDays(new Date(), 10));
+    const cancel_at = getUnixTime(addDays(new Date(), 60));
+    const currentPhase: Stripe.SubscriptionSchedule.Phase = {
+      ...DEFAULT_PHASE_PROPERTIES,
+      start_date: subscription_started_at,
+      end_date: subscription_renews_at,
+      items: [
+        {
+          ...DEFAULT_ITEM_PROPERTIES,
+          quantity: 10,
+        },
+      ],
+    };
+
+    const existingPhases = [currentPhase];
+
+    const updatedPhases = scheduleSubscriptionUpdates({
+      existingPhases,
+      propertyUpdates: [
+        {
+          quantity: 15,
+          scheduled_at: subscription_renews_at,
+          proration_behavior: "none",
+        },
+      ],
+      cancelAt: cancel_at,
+    });
+
+    expect(updatedPhases).toHaveLength(2);
+    assertPhasesAreContinuous(updatedPhases);
+
+    expect(updatedPhases[0].items[0].quantity).toBe(10);
+    expect(updatedPhases[0].start_date).toBe(subscription_started_at);
+    expect(updatedPhases[0].end_date).toBe(subscription_renews_at);
+
+    expect(updatedPhases[1].items[0].quantity).toBe(15);
+    expect(updatedPhases[1].start_date).toBe(subscription_renews_at);
+    expect(updatedPhases[1].end_date).toBe(cancel_at);
   });
 });

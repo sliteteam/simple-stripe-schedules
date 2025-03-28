@@ -22,16 +22,18 @@ import type { ScheduledPropertyUpdates } from "./types";
  * @returns Array of SubscriptionScheduleUpdateParams.Phase objects that represent the updated phases and can be passed to stripe.subscriptionSchedules.update
  */
 export function scheduleSubscriptionUpdates({
-  propertyUpdates,
   existingPhases,
+  propertyUpdates,
+  cancelAt,
 }: {
-  propertyUpdates: ScheduledPropertyUpdates[];
   existingPhases?: Stripe.SubscriptionSchedule.Phase[];
+  propertyUpdates?: ScheduledPropertyUpdates[];
+  cancelAt?: number;
 }): Stripe.SubscriptionScheduleUpdateParams.Phase[] {
   // No updates to do, just return the existing phases
-  if (propertyUpdates.length === 0) {
+  if ((!propertyUpdates || propertyUpdates.length === 0) && !cancelAt) {
     if (!existingPhases) {
-      throw new Error("No property updates to apply and no existing phases");
+      throw new Error("Nothing to schedule and no existing phases");
     }
     return existingPhases.map((phase) =>
       getPhaseUpdateParamsFromExistingPhase(phase)
@@ -39,27 +41,30 @@ export function scheduleSubscriptionUpdates({
   }
 
   // Sort property updates in chronological order
-  propertyUpdates.sort((a, b) => a.scheduled_at - b.scheduled_at);
+  if (propertyUpdates) {
+    propertyUpdates.sort((a, b) => a.scheduled_at - b.scheduled_at);
+  }
 
   // Step 1: Build a list of all required phases, with their start_date and end_date.
 
   const newPhases = buildPhaseListFromExistingPhasesAndPropertyUpdates(
     existingPhases ?? [],
-    propertyUpdates
+    propertyUpdates ?? [],
+    cancelAt
   );
 
   // Step 2: Apply property changes on the correct phases
 
   const phasesWithUpdatedProperties = applyPropertyUpdatesOnNewPhases(
     newPhases,
-    propertyUpdates
+    propertyUpdates ?? []
   );
 
-  // Step 3: Remove past phases
+  // Step 4: Remove past phases
 
   const filteredPhases = removePastPhases(phasesWithUpdatedProperties);
 
-  // Step 4: Merge identical adjacent phases
+  // Step 5: Merge identical adjacent phases
 
   const finalPhases = mergeAdjacentPhaseUpdates(filteredPhases);
 

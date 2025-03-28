@@ -161,7 +161,8 @@ export function applyPropertyUpdatesOnNewPhases(
 
 export function buildPhaseListFromExistingPhasesAndPropertyUpdates(
   existingPhases: Stripe.SubscriptionSchedule.Phase[],
-  propertyUpdates: ScheduledPropertyUpdates[]
+  propertyUpdates: ScheduledPropertyUpdates[],
+  cancelAt?: number
 ) {
   const newPhases: Stripe.SubscriptionScheduleUpdateParams.Phase[] = [];
 
@@ -173,13 +174,23 @@ export function buildPhaseListFromExistingPhasesAndPropertyUpdates(
     )
   );
 
+  // The cancellation timestamp will be a phase end
+  if (cancelAt) {
+    phaseBounds.add(cancelAt);
+  }
+
   const propertyUpdateTimestamps = propertyUpdates.map(
     (update) => update.scheduled_at
   );
   for (const propertyUpdate of propertyUpdates) {
     phaseBounds.add(propertyUpdate.scheduled_at);
   }
-  const newPhasesBounds = [...phaseBounds].sort();
+  let newPhasesBounds = [...phaseBounds].sort();
+
+  // Drop any phase existing after cancellation
+  if (cancelAt) {
+    newPhasesBounds = newPhasesBounds.filter((bound) => bound <= cancelAt);
+  }
 
   for (let i = 0; i < newPhasesBounds.length - 1; i++) {
     if (newPhasesBounds[i] === newPhasesBounds[i + 1]) {
@@ -218,7 +229,13 @@ export function buildPhaseListFromExistingPhasesAndPropertyUpdates(
     const isLastPhase = newPhaseBounds.end_date === newPhasesBounds.at(-1);
     const isCurrentPhaseEndingWithAPropertyUpdate =
       propertyUpdateTimestamps.includes(newPhaseBounds.end_date);
-    if (isLastPhase && isCurrentPhaseEndingWithAPropertyUpdate) {
+    const isCurrentPhaseEndingWithCancellation =
+      newPhaseBounds.end_date === cancelAt;
+    if (
+      isLastPhase &&
+      isCurrentPhaseEndingWithAPropertyUpdate &&
+      !isCurrentPhaseEndingWithCancellation
+    ) {
       newPhases.push(
         getPhaseUpdateParamsFromExistingPhase(latestPrecedingPhase, {
           startDate: newPhaseBounds.end_date,
