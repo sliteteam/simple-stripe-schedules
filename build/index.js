@@ -234,14 +234,20 @@ function applyPropertyUpdatesOnNewPhases(phasesList, propertyUpdates) {
     });
   });
 }
-function buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases, propertyUpdates) {
+function buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases, propertyUpdates, cancelAt) {
   const newPhases = [];
   const phaseBounds = new Set(existingPhases.reduce((acc, phase) => [...acc, phase.start_date, phase.end_date], []));
+  if (cancelAt) {
+    phaseBounds.add(cancelAt);
+  }
   const propertyUpdateTimestamps = propertyUpdates.map((update) => update.scheduled_at);
   for (const propertyUpdate of propertyUpdates) {
     phaseBounds.add(propertyUpdate.scheduled_at);
   }
-  const newPhasesBounds = [...phaseBounds].sort();
+  let newPhasesBounds = [...phaseBounds].sort();
+  if (cancelAt) {
+    newPhasesBounds = newPhasesBounds.filter((bound) => bound <= cancelAt);
+  }
   for (let i = 0;i < newPhasesBounds.length - 1; i++) {
     if (newPhasesBounds[i] === newPhasesBounds[i + 1]) {
       throw new Error(`Duplicate phase boundary: ${newPhasesBounds[i]}`);
@@ -263,7 +269,8 @@ function buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases, prop
     }));
     const isLastPhase = newPhaseBounds.end_date === newPhasesBounds.at(-1);
     const isCurrentPhaseEndingWithAPropertyUpdate = propertyUpdateTimestamps.includes(newPhaseBounds.end_date);
-    if (isLastPhase && isCurrentPhaseEndingWithAPropertyUpdate) {
+    const isCurrentPhaseEndingWithCancellation = newPhaseBounds.end_date === cancelAt;
+    if (isLastPhase && isCurrentPhaseEndingWithAPropertyUpdate && !isCurrentPhaseEndingWithCancellation) {
       newPhases.push(getPhaseUpdateParamsFromExistingPhase(latestPrecedingPhase, {
         startDate: newPhaseBounds.end_date,
         endDate: null
@@ -276,18 +283,21 @@ function buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases, prop
 
 // src/index.ts
 function scheduleSubscriptionUpdates({
+  existingPhases,
   propertyUpdates,
-  existingPhases
+  cancelAt
 }) {
-  if (propertyUpdates.length === 0) {
+  if ((!propertyUpdates || propertyUpdates.length === 0) && !cancelAt) {
     if (!existingPhases) {
-      throw new Error("No property updates to apply and no existing phases");
+      throw new Error("Nothing to schedule and no existing phases");
     }
     return existingPhases.map((phase) => getPhaseUpdateParamsFromExistingPhase(phase));
   }
-  propertyUpdates.sort((a, b) => a.scheduled_at - b.scheduled_at);
-  const newPhases = buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases ?? [], propertyUpdates);
-  const phasesWithUpdatedProperties = applyPropertyUpdatesOnNewPhases(newPhases, propertyUpdates);
+  if (propertyUpdates) {
+    propertyUpdates.sort((a, b) => a.scheduled_at - b.scheduled_at);
+  }
+  const newPhases = buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases ?? [], propertyUpdates ?? [], cancelAt);
+  const phasesWithUpdatedProperties = applyPropertyUpdatesOnNewPhases(newPhases, propertyUpdates ?? []);
   const filteredPhases = removePastPhases(phasesWithUpdatedProperties);
   const finalPhases = mergeAdjacentPhaseUpdates(filteredPhases);
   assertHasNoPastPhases(finalPhases);

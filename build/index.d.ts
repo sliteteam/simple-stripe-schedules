@@ -20,9 +20,10 @@ export type ScheduledPropertyUpdates = {
  * @param propertyUpdates Array of ScheduledPropertyUpdates objects that represent the property updates to apply.
  * @returns Array of SubscriptionScheduleUpdateParams.Phase objects that represent the updated phases and can be passed to stripe.subscriptionSchedules.update
  */
-export declare function scheduleSubscriptionUpdates({ propertyUpdates, existingPhases, }: {
-	propertyUpdates: ScheduledPropertyUpdates[];
+export declare function scheduleSubscriptionUpdates({ existingPhases, propertyUpdates, cancelAt, }: {
 	existingPhases?: Stripe.SubscriptionSchedule.Phase[];
+	propertyUpdates?: ScheduledPropertyUpdates[];
+	cancelAt?: number;
 }): Stripe.SubscriptionScheduleUpdateParams.Phase[];
 
 export {};
