@@ -47,7 +47,7 @@ export function convertPhaseToPhaseUpdateParams(
   const newOnBehalfOf =
     typeof on_behalf_of === "string" ? on_behalf_of : on_behalf_of?.id;
 
-  return {
+  const output: Omit<Stripe.SubscriptionScheduleUpdateParams.Phase, "items"> = {
     ...restOfFields,
     coupon: couponId,
     add_invoice_items:
@@ -75,6 +75,12 @@ export function convertPhaseToPhaseUpdateParams(
       undefined,
     trial_end: trial_end ?? undefined,
   };
+
+  // We can't have both trial and trial_end
+  if (output.trial) {
+    delete output.trial_end;
+  }
+  return output;
 }
 
 function convertTransferDataToUpdateParams(

@@ -59,7 +59,7 @@ function convertPhaseToPhaseUpdateParams(phase) {
   const defaultTaxRateIds = default_tax_rates && default_tax_rates.map((taxRate) => typeof taxRate === "string" ? taxRate : taxRate.id);
   const newDiscounts = discounts && discounts.filter((discount) => typeof discount === "string");
   const newOnBehalfOf = typeof on_behalf_of === "string" ? on_behalf_of : on_behalf_of?.id;
-  return {
+  const output = {
     ...restOfFields,
     coupon: couponId,
     add_invoice_items: add_invoice_items && convertAddInvoiceItemsToUpdateParams(add_invoice_items),
@@ -77,6 +77,10 @@ function convertPhaseToPhaseUpdateParams(phase) {
     transfer_data: (transfer_data && convertTransferDataToUpdateParams(transfer_data)) ?? undefined,
     trial_end: trial_end ?? undefined
   };
+  if (output.trial) {
+    delete output.trial_end;
+  }
+  return output;
 }
 function convertTransferDataToUpdateParams(transfer_data) {
   return {
