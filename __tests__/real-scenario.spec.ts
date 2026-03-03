@@ -2,6 +2,13 @@ import type Stripe from "stripe";
 import { describe, expect, it } from "bun:test";
 import { scheduleSubscriptionUpdates } from "../src";
 
+function buildSchedule(
+  phases: Stripe.SubscriptionSchedule.Phase[],
+  end_behavior?: Stripe.SubscriptionSchedule.EndBehavior | null,
+): Pick<Stripe.SubscriptionSchedule, "phases" | "end_behavior"> {
+  return { phases, end_behavior: end_behavior ?? "release" };
+}
+
 describe(`Updating quantity at the end of the day and then at renewal (same quantity)`, () => {
   const EXISTING_PHASES: Stripe.SubscriptionSchedule.Phase[] = [
     {
@@ -45,10 +52,12 @@ describe(`Updating quantity at the end of the day and then at renewal (same quan
   ];
 
   it("Creates 1 phase from current phase start to end of day, and one from end of day to after renewal", () => {
-    const updatedPhases = scheduleSubscriptionUpdates({
-      propertyUpdates: propertyChanges,
-      existingPhases: EXISTING_PHASES,
-    });
+    const updatedPhases = scheduleSubscriptionUpdates(
+      buildSchedule(EXISTING_PHASES),
+      {
+        propertyUpdates: propertyChanges,
+      },
+    );
 
     expect(updatedPhases).toHaveLength(2);
 
@@ -105,10 +114,12 @@ describe(`Updating quantity at the end of the day and then at renewal (different
   ];
 
   it("Creates 1 phase from current phase start to end of day, and one from end of day to after renewal", () => {
-    const updatedPhases = scheduleSubscriptionUpdates({
-      propertyUpdates: propertyChanges,
-      existingPhases: EXISTING_PHASES,
-    });
+    const updatedPhases = scheduleSubscriptionUpdates(
+      buildSchedule(EXISTING_PHASES),
+      {
+        propertyUpdates: propertyChanges,
+      },
+    );
 
     expect(updatedPhases).toHaveLength(3);
 
