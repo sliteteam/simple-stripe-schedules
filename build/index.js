@@ -238,7 +238,7 @@ function applyPropertyUpdatesOnNewPhases(phasesList, propertyUpdates) {
     });
   });
 }
-function buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases, propertyUpdates, cancelAt) {
+function buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases, propertyUpdates, cancelAt, end_behavior) {
   const newPhases = [];
   const phaseBounds = new Set(existingPhases.reduce((acc, phase) => [...acc, phase.start_date, phase.end_date], []));
   if (cancelAt) {
@@ -273,7 +273,7 @@ function buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases, prop
     }));
     const isLastPhase = newPhaseBounds.end_date === newPhasesBounds.at(-1);
     const isCurrentPhaseEndingWithAPropertyUpdate = propertyUpdateTimestamps.includes(newPhaseBounds.end_date);
-    const isCurrentPhaseEndingWithCancellation = newPhaseBounds.end_date === cancelAt;
+    const isCurrentPhaseEndingWithCancellation = newPhaseBounds.end_date === cancelAt || end_behavior === "cancel" && isLastPhase;
     if (isLastPhase && isCurrentPhaseEndingWithAPropertyUpdate && !isCurrentPhaseEndingWithCancellation) {
       newPhases.push(getPhaseUpdateParamsFromExistingPhase(latestPrecedingPhase, {
         startDate: newPhaseBounds.end_date,
@@ -286,11 +286,11 @@ function buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases, prop
 }
 
 // src/index.ts
-function scheduleSubscriptionUpdates({
-  existingPhases,
+function scheduleSubscriptionUpdates(schedule, {
   propertyUpdates,
   cancelAt
 }) {
+  const { phases: existingPhases, end_behavior } = schedule;
   if ((!propertyUpdates || propertyUpdates.length === 0) && !cancelAt) {
     if (!existingPhases) {
       throw new Error("Nothing to schedule and no existing phases");
@@ -300,7 +300,7 @@ function scheduleSubscriptionUpdates({
   if (propertyUpdates) {
     propertyUpdates.sort((a, b) => a.scheduled_at - b.scheduled_at);
   }
-  const newPhases = buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases ?? [], propertyUpdates ?? [], cancelAt);
+  const newPhases = buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases ?? [], propertyUpdates ?? [], cancelAt, end_behavior);
   const phasesWithUpdatedProperties = applyPropertyUpdatesOnNewPhases(newPhases, propertyUpdates ?? []);
   const filteredPhases = removePastPhases(phasesWithUpdatedProperties);
   const finalPhases = mergeAdjacentPhaseUpdates(filteredPhases);

@@ -1,6 +1,6 @@
 {
   "name": "simple-stripe-schedules",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "module": "index.ts",
   "main": "build/index.js",
   "type": "commonjs",
