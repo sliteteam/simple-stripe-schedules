@@ -57,7 +57,7 @@ function convertPhaseToPhaseUpdateParams(phase) {
   const couponId = typeof coupon === "string" ? coupon : coupon?.id;
   const defaultPaymentMethodId = typeof default_payment_method === "string" ? default_payment_method : default_payment_method?.id;
   const defaultTaxRateIds = default_tax_rates && default_tax_rates.map((taxRate) => typeof taxRate === "string" ? taxRate : taxRate.id);
-  const newDiscounts = discounts && discounts.filter((discount) => typeof discount === "string");
+  const newDiscounts = discounts && convertDiscountsToUpdateParams(discounts);
   const newOnBehalfOf = typeof on_behalf_of === "string" ? on_behalf_of : on_behalf_of?.id;
   const output = {
     ...restOfFields,
@@ -82,6 +82,25 @@ function convertPhaseToPhaseUpdateParams(phase) {
   }
   return output;
 }
+function convertDiscountToUpdateParams(discount) {
+  if (typeof discount === "string") {
+    return { discount };
+  }
+  return {
+    ...discount.coupon && {
+      coupon: typeof discount.coupon === "string" ? discount.coupon : discount.coupon.id
+    },
+    ...discount.discount && {
+      discount: typeof discount.discount === "string" ? discount.discount : discount.discount.id
+    },
+    ...discount.promotion_code && {
+      promotion_code: typeof discount.promotion_code === "string" ? discount.promotion_code : discount.promotion_code.id
+    }
+  };
+}
+function convertDiscountsToUpdateParams(discounts) {
+  return discounts.map(convertDiscountToUpdateParams);
+}
 function convertTransferDataToUpdateParams(transfer_data) {
   return {
     destination: typeof transfer_data.destination === "string" ? transfer_data.destination : transfer_data.destination?.id
@@ -93,7 +112,7 @@ function convertAddInvoiceItemsToUpdateParams(add_invoice_items) {
     return {
       price: typeof price === "string" ? price : price?.id,
       quantity: quantity ?? undefined,
-      discounts: invoiceItem.discounts?.filter((discount) => typeof discount === "string"),
+      discounts: invoiceItem.discounts && convertDiscountsToUpdateParams(invoiceItem.discounts),
       tax_rates: typeof tax_rates === "string" ? tax_rates : tax_rates?.map((taxRate) => typeof taxRate === "string" ? taxRate : taxRate.id),
       ...rest
     };
@@ -147,7 +166,7 @@ function convertPhaseItemToUpdateParams(item) {
     plan: typeof plan === "string" ? plan : plan?.id,
     price: typeof price === "string" ? price : price?.id,
     billing_thresholds: typeof billing_thresholds === "string" ? billing_thresholds : undefined,
-    discounts: typeof discounts === "string" ? discounts : discounts?.filter((discount) => typeof discount === "string"),
+    discounts: typeof discounts === "string" ? discounts : discounts && convertDiscountsToUpdateParams(discounts),
     metadata: metadata ?? undefined,
     tax_rates: typeof tax_rates === "string" ? tax_rates : tax_rates?.map((taxRate) => typeof taxRate === "string" ? taxRate : taxRate.id)
   };
