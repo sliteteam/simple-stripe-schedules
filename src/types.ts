@@ -1,7 +1,7 @@
 import type Stripe from "stripe";
 
 export type ScheduledPropertyUpdates = {
-	subscriptionItemId?: string;
+	itemIndex?: number;
 	quantity?: number;
 	price?: string;
 	coupon?: string;

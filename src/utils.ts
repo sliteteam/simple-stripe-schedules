@@ -32,34 +32,31 @@ export function getPhaseUpdateParamsFromExistingPhase(
 ): Stripe.SubscriptionScheduleUpdateParams.Phase {
 	const phaseUpdateParams = convertPhaseToPhaseUpdateParams(phase);
 
-	const { subscriptionItemId, price, quantity, proration_behavior } =
+	const { itemIndex, price, quantity, proration_behavior } =
 		propertiesToApply ?? {};
 
 	const hasItemLevelUpdate = price !== undefined || quantity !== undefined;
 
-	if (hasItemLevelUpdate && phase.items.length > 1 && !subscriptionItemId) {
+	if (hasItemLevelUpdate && phase.items.length > 1 && itemIndex === undefined) {
 		throw new Error(
-			`Phase has multiple items but no subscriptionItemId was provided to target the update`,
+			`Phase has multiple items but no itemIndex was provided to target the update`,
 		);
 	}
 
-	if (subscriptionItemId && hasItemLevelUpdate) {
-		const matchingItem = phase.items.find(
-			(item) => getItemPriceId(item) === subscriptionItemId,
-		);
-		if (!matchingItem) {
+	if (itemIndex !== undefined && hasItemLevelUpdate) {
+		if (itemIndex < 0 || itemIndex >= phase.items.length) {
 			throw new Error(
-				`No item matching subscriptionItemId "${subscriptionItemId}" in phase`,
+				`itemIndex ${itemIndex} is out of bounds for phase with ${phase.items.length} item(s)`,
 			);
 		}
 	}
 
-	const items = phase.items.map((item) => {
+	const items = phase.items.map((item, index) => {
 		const itemParams = convertPhaseItemToUpdateParams(item);
 		const isTargetItem =
-			phase.items.length === 1 && !subscriptionItemId
+			phase.items.length === 1 && itemIndex === undefined
 				? true
-				: getItemPriceId(item) === subscriptionItemId;
+				: index === itemIndex;
 		if (!isTargetItem) {
 			return itemParams;
 		}
@@ -104,6 +101,42 @@ export function assertPhasesAreContinuous(
 	}
 }
 
+export function assertCurrentAndFuturePhasesHaveConsistentItemCount(
+	phases: Stripe.SubscriptionSchedule.Phase[],
+) {
+	const now = Date.now() / 1000;
+	const relevantPhases = phases.filter(
+		(phase) => !phase.end_date || phase.end_date > now,
+	);
+	if (relevantPhases.length === 0) {
+		return;
+	}
+	const expectedCount = relevantPhases[0].items.length;
+	for (const phase of relevantPhases) {
+		if (phase.items.length !== expectedCount) {
+			throw new Error(
+				`Current and future phases must all have the same number of items (expected ${expectedCount}, got ${phase.items.length})`,
+			);
+		}
+	}
+}
+
+export function assertItemIndexInBounds(
+	propertyUpdates: ScheduledPropertyUpdates[],
+	itemCount: number,
+) {
+	for (const update of propertyUpdates) {
+		if (update.itemIndex === undefined) {
+			continue;
+		}
+		if (update.itemIndex < 0 || update.itemIndex >= itemCount) {
+			throw new Error(
+				`itemIndex ${update.itemIndex} is out of bounds for phases with ${itemCount} item(s)`,
+			);
+		}
+	}
+}
+
 export function assertHasNoPastPhases(
 	phases: Pick<
 		Stripe.SubscriptionScheduleUpdateParams.Phase,
@@ -129,12 +162,20 @@ function haveSameItems(
 	if (a.items.length !== b.items.length) {
 		return false;
 	}
-	return a.items.every((itemA, index) => {
-		const itemB = b.items[index];
-		return (
-			getItemPriceId(itemA) === getItemPriceId(itemB) &&
-			itemA.quantity === itemB.quantity
-		);
+	const bQuantitiesByPriceId = new Map<string, number | undefined>();
+	for (const itemB of b.items) {
+		const priceId = getItemPriceId(itemB);
+		if (priceId === undefined) {
+			return false;
+		}
+		bQuantitiesByPriceId.set(priceId, itemB.quantity);
+	}
+	return a.items.every((itemA) => {
+		const priceId = getItemPriceId(itemA);
+		if (priceId === undefined || !bQuantitiesByPriceId.has(priceId)) {
+			return false;
+		}
+		return bQuantitiesByPriceId.get(priceId) === itemA.quantity;
 	});
 }
 
@@ -183,32 +224,39 @@ export function compilePropertyUpdates(
 	return result;
 }
 
+type NormalizedScheduledPropertyUpdates = ScheduledPropertyUpdates & {
+	itemIndex: number;
+};
+
 /**
- * Groups property updates by their target subscription item (or a single "all items"
- * bucket when no subscriptionItemId is provided), then compiles each group so the
- * latest update per item wins. Updates to distinct items remain independent.
+ * Groups property updates by their target itemIndex, then compiles each group
+ * so the latest update per item wins. Updates to distinct items remain independent.
  */
 function compilePropertyUpdatesPerItem(
-	propertyUpdates: ScheduledPropertyUpdates[],
-): ScheduledPropertyUpdates[] {
-	const groups = new Map<string, ScheduledPropertyUpdates[]>();
+	propertyUpdates: NormalizedScheduledPropertyUpdates[],
+): NormalizedScheduledPropertyUpdates[] {
+	const groups = new Map<number, NormalizedScheduledPropertyUpdates[]>();
 	for (const update of propertyUpdates) {
-		const key = update.subscriptionItemId ?? "__all__";
-		const existing = groups.get(key);
+		const existing = groups.get(update.itemIndex);
 		if (existing) {
 			existing.push(update);
 		} else {
-			groups.set(key, [update]);
+			groups.set(update.itemIndex, [update]);
 		}
 	}
-	return [...groups.values()].map((group) => compilePropertyUpdates(group));
+	return [...groups.values()].map(
+		(group) => compilePropertyUpdates(group) as NormalizedScheduledPropertyUpdates,
+	);
 }
 
 export function applyPropertyUpdatesOnNewPhases(
 	phasesList: Stripe.SubscriptionScheduleUpdateParams.Phase[],
-	propertyUpdates: ScheduledPropertyUpdates[],
+	propertyUpdates: NormalizedScheduledPropertyUpdates[],
 ) {
-	const activePropertiesPerItem = new Map<string, ScheduledPropertyUpdates>();
+	const activePropertiesPerItem = new Map<
+		number,
+		NormalizedScheduledPropertyUpdates
+	>();
 	return phasesList.map((phase) => {
 		// Apply any property updates scheduled at the beginning of this phase,
 		// grouped per target item so updates to distinct items don't overwrite each other.
@@ -218,11 +266,14 @@ export function applyPropertyUpdatesOnNewPhases(
 		const compiledUpdatesForThisPhase =
 			compilePropertyUpdatesPerItem(updatesForThisPhase);
 		for (const update of compiledUpdatesForThisPhase) {
-			const key = update.subscriptionItemId ?? "__all__";
-			const existing = activePropertiesPerItem.get(key) ?? {
+			const existing = activePropertiesPerItem.get(update.itemIndex) ?? {
 				scheduled_at: 0,
+				itemIndex: update.itemIndex,
 			};
-			activePropertiesPerItem.set(key, { ...existing, ...update });
+			activePropertiesPerItem.set(update.itemIndex, {
+				...existing,
+				...update,
+			});
 		}
 
 		let updatedPhase = phase;

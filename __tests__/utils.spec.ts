@@ -138,6 +138,54 @@ describe("mergeAdjacentPhaseUpdates", () => {
     expect(mergedPhases[1].items[0].quantity).toBe(10);
   });
 
+  it("merges adjacent multi-item phases regardless of item order", () => {
+    const phase1: Stripe.SubscriptionScheduleUpdateParams.Phase = {
+      items: [
+        { plan: "price1", price: "price1", quantity: 10 },
+        { plan: "price2", price: "price2", quantity: 3 },
+      ],
+      start_date: 1,
+      end_date: 2,
+    };
+    const phase2: Stripe.SubscriptionScheduleUpdateParams.Phase = {
+      items: [
+        { plan: "price2", price: "price2", quantity: 3 },
+        { plan: "price1", price: "price1", quantity: 10 },
+      ],
+      start_date: 2,
+      end_date: 3,
+    };
+
+    const mergedPhases = mergeAdjacentPhaseUpdates([phase1, phase2]);
+
+    expect(mergedPhases).toHaveLength(1);
+    expect(mergedPhases[0].start_date).toBe(1);
+    expect(mergedPhases[0].end_date).toBe(3);
+  });
+
+  it("does not merge multi-item phases when quantities differ for a price", () => {
+    const phase1: Stripe.SubscriptionScheduleUpdateParams.Phase = {
+      items: [
+        { plan: "price1", price: "price1", quantity: 10 },
+        { plan: "price2", price: "price2", quantity: 3 },
+      ],
+      start_date: 1,
+      end_date: 2,
+    };
+    const phase2: Stripe.SubscriptionScheduleUpdateParams.Phase = {
+      items: [
+        { plan: "price2", price: "price2", quantity: 5 },
+        { plan: "price1", price: "price1", quantity: 10 },
+      ],
+      start_date: 2,
+      end_date: 3,
+    };
+
+    const mergedPhases = mergeAdjacentPhaseUpdates([phase1, phase2]);
+
+    expect(mergedPhases).toHaveLength(2);
+  });
+
   it("preserves phases with no end date", () => {
     const phase1: Stripe.SubscriptionScheduleUpdateParams.Phase = {
       items: [

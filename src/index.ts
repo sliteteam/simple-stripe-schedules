@@ -1,7 +1,9 @@
 import type Stripe from "stripe";
 import {
 	applyPropertyUpdatesOnNewPhases,
+	assertCurrentAndFuturePhasesHaveConsistentItemCount,
 	assertHasNoPastPhases,
+	assertItemIndexInBounds,
 	assertPhasesAreContinuous,
 	buildPhaseListFromExistingPhasesAndPropertyUpdates,
 	getPhaseUpdateParamsFromExistingPhase,
@@ -33,8 +35,40 @@ export function scheduleSubscriptionUpdates(
 ): Stripe.SubscriptionScheduleUpdateParams.Phase[] {
 	const { phases: existingPhases, end_behavior } = schedule;
 
+	if (existingPhases) {
+		assertCurrentAndFuturePhasesHaveConsistentItemCount(existingPhases);
+	}
+
+	const now = Date.now() / 1000;
+	const firstRelevantPhase = existingPhases?.find(
+		(phase) => !phase.end_date || phase.end_date > now,
+	);
+
+	// Default itemIndex to 0 for backwards compatibility on single-item phases.
+	// On multi-item phases, callers must target explicitly.
+	const normalizedPropertyUpdates: (ScheduledPropertyUpdates & {
+		itemIndex: number;
+	})[] | undefined = propertyUpdates?.map((update) => {
+		if (update.itemIndex !== undefined) {
+			return { ...update, itemIndex: update.itemIndex };
+		}
+		if (firstRelevantPhase && firstRelevantPhase.items.length > 1) {
+			throw new Error(
+				`Phase has multiple items but no itemIndex was provided to target the update`,
+			);
+		}
+		return { ...update, itemIndex: 0 };
+	});
+
+	if (firstRelevantPhase && normalizedPropertyUpdates?.length) {
+		assertItemIndexInBounds(
+			normalizedPropertyUpdates,
+			firstRelevantPhase.items.length,
+		);
+	}
+
 	// No updates to do, just return the existing phases
-	if ((!propertyUpdates || propertyUpdates.length === 0) && !cancelAt) {
+	if (!normalizedPropertyUpdates?.length && !cancelAt) {
 		if (!existingPhases) {
 			throw new Error("Nothing to schedule and no existing phases");
 		}
@@ -44,15 +78,13 @@ export function scheduleSubscriptionUpdates(
 	}
 
 	// Sort property updates in chronological order
-	if (propertyUpdates) {
-		propertyUpdates.sort((a, b) => a.scheduled_at - b.scheduled_at);
-	}
+	normalizedPropertyUpdates?.sort((a, b) => a.scheduled_at - b.scheduled_at);
 
 	// Step 1: Build a list of all required phases, with their start_date and end_date.
 
 	const newPhases = buildPhaseListFromExistingPhasesAndPropertyUpdates(
 		existingPhases ?? [],
-		propertyUpdates ?? [],
+		normalizedPropertyUpdates ?? [],
 		cancelAt,
 		end_behavior,
 	);
@@ -61,7 +93,7 @@ export function scheduleSubscriptionUpdates(
 
 	const phasesWithUpdatedProperties = applyPropertyUpdatesOnNewPhases(
 		newPhases,
-		propertyUpdates ?? [],
+		normalizedPropertyUpdates ?? [],
 	);
 
 	// Step 4: Remove past phases
