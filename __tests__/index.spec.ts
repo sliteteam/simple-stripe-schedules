@@ -692,6 +692,605 @@ describe("scheduleSubscriptionUpdates", () => {
 		timekeeper.freeze("2025-02-05T15:00:00Z");
 	});
 
+	describe("multi-item subscriptions", () => {
+		it("Throws when a phase has multiple items and no itemIndex is passed", () => {
+			const subscription_started_at = getUnixTime(addDays(new Date(), -20));
+			const subscription_renews_at = getUnixTime(addDays(new Date(), 10));
+			const currentPhase: Stripe.SubscriptionSchedule.Phase = {
+				...DEFAULT_PHASE_PROPERTIES,
+				start_date: subscription_started_at,
+				end_date: subscription_renews_at,
+				items: [
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price1",
+						price: "price1",
+						quantity: 10,
+					},
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price2",
+						price: "price2",
+						quantity: 3,
+					},
+				],
+			};
+
+			expect(() =>
+				scheduleSubscriptionUpdates(buildSchedule([currentPhase]), {
+					propertyUpdates: [
+						{
+							quantity: 6,
+							scheduled_at: subscription_renews_at,
+						},
+					],
+				}),
+			).toThrow();
+		});
+
+		it("Defaults itemIndex to 0 on single-item phases for backwards compatibility", () => {
+			const subscription_started_at = getUnixTime(addDays(new Date(), -20));
+			const subscription_renews_at = getUnixTime(addDays(new Date(), 10));
+			const currentPhase: Stripe.SubscriptionSchedule.Phase = {
+				...DEFAULT_PHASE_PROPERTIES,
+				start_date: subscription_started_at,
+				end_date: subscription_renews_at,
+				items: [
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price1",
+						price: "price1",
+						quantity: 10,
+					},
+				],
+			};
+
+			const updatedPhases = scheduleSubscriptionUpdates(
+				buildSchedule([currentPhase]),
+				{
+					propertyUpdates: [
+						{
+							quantity: 6,
+							scheduled_at: subscription_renews_at,
+						},
+					],
+				},
+			);
+
+			expect(updatedPhases[1].items[0].quantity).toBe(6);
+		});
+
+		it("Does not throw when phases have multiple items but there are no property updates", () => {
+			const subscription_started_at = getUnixTime(addDays(new Date(), -20));
+			const subscription_renews_at = getUnixTime(addDays(new Date(), 10));
+			const cancel_at = getUnixTime(addDays(new Date(), 5));
+			const currentPhase: Stripe.SubscriptionSchedule.Phase = {
+				...DEFAULT_PHASE_PROPERTIES,
+				start_date: subscription_started_at,
+				end_date: subscription_renews_at,
+				items: [
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price1",
+						price: "price1",
+						quantity: 10,
+					},
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price2",
+						price: "price2",
+						quantity: 3,
+					},
+				],
+			};
+
+			expect(() =>
+				scheduleSubscriptionUpdates(buildSchedule([currentPhase]), {
+					cancelAt: cancel_at,
+				}),
+			).not.toThrow();
+		});
+
+		it("Updates the quantity of only the targeted item by itemIndex", () => {
+			const subscription_started_at = getUnixTime(addDays(new Date(), -20));
+			const subscription_renews_at = getUnixTime(addDays(new Date(), 10));
+			const currentPhase: Stripe.SubscriptionSchedule.Phase = {
+				...DEFAULT_PHASE_PROPERTIES,
+				start_date: subscription_started_at,
+				end_date: subscription_renews_at,
+				items: [
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price1",
+						price: "price1",
+						quantity: 10,
+					},
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price2",
+						price: "price2",
+						quantity: 3,
+					},
+				],
+			};
+
+			const updatedPhases = scheduleSubscriptionUpdates(
+				buildSchedule([currentPhase]),
+				{
+					propertyUpdates: [
+						{
+							itemIndex: 0,
+							quantity: 6,
+							scheduled_at: subscription_renews_at,
+						},
+					],
+				},
+			);
+
+			expect(updatedPhases).toHaveLength(2);
+			assertPhasesAreContinuous(updatedPhases);
+
+			expect(updatedPhases[0].items).toHaveLength(2);
+			expect(updatedPhases[0].items[0].plan).toBe("price1");
+			expect(updatedPhases[0].items[0].quantity).toBe(10);
+			expect(updatedPhases[0].items[1].plan).toBe("price2");
+			expect(updatedPhases[0].items[1].quantity).toBe(3);
+			expect(updatedPhases[0].start_date).toBe(subscription_started_at);
+			expect(updatedPhases[0].end_date).toBe(subscription_renews_at);
+
+			expect(updatedPhases[1].items).toHaveLength(2);
+			expect(updatedPhases[1].items[0].plan).toBe("price1");
+			expect(updatedPhases[1].items[0].quantity).toBe(6);
+			expect(updatedPhases[1].items[1].plan).toBe("price2");
+			expect(updatedPhases[1].items[1].quantity).toBe(3);
+			expect(updatedPhases[1].start_date).toBe(subscription_renews_at);
+		});
+
+		it("Updates the price of only the targeted item by itemIndex", () => {
+			const subscription_started_at = getUnixTime(addDays(new Date(), -20));
+			const subscription_renews_at = getUnixTime(addDays(new Date(), 10));
+			const currentPhase: Stripe.SubscriptionSchedule.Phase = {
+				...DEFAULT_PHASE_PROPERTIES,
+				start_date: subscription_started_at,
+				end_date: subscription_renews_at,
+				items: [
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price1",
+						price: "price1",
+						quantity: 10,
+					},
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price2",
+						price: "price2",
+						quantity: 3,
+					},
+				],
+			};
+
+			const updatedPhases = scheduleSubscriptionUpdates(
+				buildSchedule([currentPhase]),
+				{
+					propertyUpdates: [
+						{
+							itemIndex: 1,
+							price: "price2_updated",
+							scheduled_at: subscription_renews_at,
+						},
+					],
+				},
+			);
+
+			expect(updatedPhases).toHaveLength(2);
+			assertPhasesAreContinuous(updatedPhases);
+
+			expect(updatedPhases[0].items).toHaveLength(2);
+			expect(updatedPhases[0].items[0].plan).toBe("price1");
+			expect(updatedPhases[0].items[0].quantity).toBe(10);
+			expect(updatedPhases[0].items[1].plan).toBe("price2");
+			expect(updatedPhases[0].items[1].quantity).toBe(3);
+
+			expect(updatedPhases[1].items).toHaveLength(2);
+			expect(updatedPhases[1].items[0].plan).toBe("price1");
+			expect(updatedPhases[1].items[0].quantity).toBe(10);
+			expect(updatedPhases[1].items[1].plan).toBe("price2_updated");
+			expect(updatedPhases[1].items[1].price).toBe("price2_updated");
+			expect(updatedPhases[1].items[1].quantity).toBe(3);
+		});
+
+		it("Applies distinct updates to distinct items across a single phase boundary", () => {
+			const subscription_started_at = getUnixTime(addDays(new Date(), -20));
+			const subscription_renews_at = getUnixTime(addDays(new Date(), 10));
+			const currentPhase: Stripe.SubscriptionSchedule.Phase = {
+				...DEFAULT_PHASE_PROPERTIES,
+				start_date: subscription_started_at,
+				end_date: subscription_renews_at,
+				items: [
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price1",
+						price: "price1",
+						quantity: 10,
+					},
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price2",
+						price: "price2",
+						quantity: 3,
+					},
+				],
+			};
+
+			const updatedPhases = scheduleSubscriptionUpdates(
+				buildSchedule([currentPhase]),
+				{
+					propertyUpdates: [
+						{
+							itemIndex: 0,
+							quantity: 20,
+							scheduled_at: subscription_renews_at,
+						},
+						{
+							itemIndex: 1,
+							quantity: 7,
+							scheduled_at: subscription_renews_at,
+						},
+					],
+				},
+			);
+
+			expect(updatedPhases).toHaveLength(2);
+			assertPhasesAreContinuous(updatedPhases);
+
+			expect(updatedPhases[0].items).toHaveLength(2);
+			expect(updatedPhases[0].items[0].quantity).toBe(10);
+			expect(updatedPhases[0].items[1].quantity).toBe(3);
+
+			expect(updatedPhases[1].items).toHaveLength(2);
+			expect(updatedPhases[1].items[0].plan).toBe("price1");
+			expect(updatedPhases[1].items[0].quantity).toBe(20);
+			expect(updatedPhases[1].items[1].plan).toBe("price2");
+			expect(updatedPhases[1].items[1].quantity).toBe(7);
+		});
+
+		it("Applies updates to different items at different timestamps", () => {
+			const subscription_started_at = getUnixTime(addDays(new Date(), -20));
+			const subscription_renews_at = getUnixTime(addDays(new Date(), 10));
+			const current_day_ends_at = getUnixTime(endOfDay(new Date()));
+			const currentPhase: Stripe.SubscriptionSchedule.Phase = {
+				...DEFAULT_PHASE_PROPERTIES,
+				start_date: subscription_started_at,
+				end_date: subscription_renews_at,
+				items: [
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price1",
+						price: "price1",
+						quantity: 10,
+					},
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price2",
+						price: "price2",
+						quantity: 3,
+					},
+				],
+			};
+
+			const updatedPhases = scheduleSubscriptionUpdates(
+				buildSchedule([currentPhase]),
+				{
+					propertyUpdates: [
+						{
+							itemIndex: 0,
+							quantity: 20,
+							scheduled_at: current_day_ends_at,
+						},
+						{
+							itemIndex: 1,
+							quantity: 7,
+							scheduled_at: subscription_renews_at,
+						},
+					],
+				},
+			);
+
+			expect(updatedPhases).toHaveLength(3);
+			assertPhasesAreContinuous(updatedPhases);
+
+			expect(updatedPhases[0].items[0].quantity).toBe(10);
+			expect(updatedPhases[0].items[1].quantity).toBe(3);
+			expect(updatedPhases[0].start_date).toBe(subscription_started_at);
+			expect(updatedPhases[0].end_date).toBe(current_day_ends_at);
+
+			expect(updatedPhases[1].items[0].plan).toBe("price1");
+			expect(updatedPhases[1].items[0].quantity).toBe(20);
+			expect(updatedPhases[1].items[1].plan).toBe("price2");
+			expect(updatedPhases[1].items[1].quantity).toBe(3);
+			expect(updatedPhases[1].start_date).toBe(current_day_ends_at);
+			expect(updatedPhases[1].end_date).toBe(subscription_renews_at);
+
+			expect(updatedPhases[2].items[0].plan).toBe("price1");
+			expect(updatedPhases[2].items[0].quantity).toBe(20);
+			expect(updatedPhases[2].items[1].plan).toBe("price2");
+			expect(updatedPhases[2].items[1].quantity).toBe(7);
+			expect(updatedPhases[2].start_date).toBe(subscription_renews_at);
+		});
+
+		it("Throws when itemIndex is out of bounds for the phase", () => {
+			const subscription_started_at = getUnixTime(addDays(new Date(), -20));
+			const subscription_renews_at = getUnixTime(addDays(new Date(), 10));
+			const currentPhase: Stripe.SubscriptionSchedule.Phase = {
+				...DEFAULT_PHASE_PROPERTIES,
+				start_date: subscription_started_at,
+				end_date: subscription_renews_at,
+				items: [
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price1",
+						price: "price1",
+						quantity: 10,
+					},
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price2",
+						price: "price2",
+						quantity: 3,
+					},
+				],
+			};
+
+			expect(() =>
+				scheduleSubscriptionUpdates(buildSchedule([currentPhase]), {
+					propertyUpdates: [
+						{
+							itemIndex: 5,
+							quantity: 6,
+							scheduled_at: subscription_renews_at,
+						},
+					],
+				}),
+			).toThrow();
+		});
+
+		it("Targets the only item when an itemIndex of 0 is passed on a single-item phase", () => {
+			const subscription_started_at = getUnixTime(addDays(new Date(), -20));
+			const subscription_renews_at = getUnixTime(addDays(new Date(), 10));
+			const currentPhase: Stripe.SubscriptionSchedule.Phase = {
+				...DEFAULT_PHASE_PROPERTIES,
+				start_date: subscription_started_at,
+				end_date: subscription_renews_at,
+				items: [
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price1",
+						price: "price1",
+						quantity: 10,
+					},
+				],
+			};
+
+			const updatedPhases = scheduleSubscriptionUpdates(
+				buildSchedule([currentPhase]),
+				{
+					propertyUpdates: [
+						{
+							itemIndex: 0,
+							quantity: 6,
+							scheduled_at: subscription_renews_at,
+						},
+					],
+				},
+			);
+
+			expect(updatedPhases).toHaveLength(2);
+			assertPhasesAreContinuous(updatedPhases);
+
+			expect(updatedPhases[0].items[0].quantity).toBe(10);
+			expect(updatedPhases[1].items[0].quantity).toBe(6);
+		});
+
+		it("Merges adjacent multi-item phases when all items are identical", () => {
+			const subscription_started_at = getUnixTime(addDays(new Date(), -20));
+			const subscription_renews_at = getUnixTime(addDays(new Date(), 10));
+			const current_day_ends_at = getUnixTime(endOfDay(new Date()));
+			const currentPhase: Stripe.SubscriptionSchedule.Phase = {
+				...DEFAULT_PHASE_PROPERTIES,
+				start_date: subscription_started_at,
+				end_date: current_day_ends_at,
+				items: [
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price1",
+						price: "price1",
+						quantity: 10,
+					},
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price2",
+						price: "price2",
+						quantity: 3,
+					},
+				],
+			};
+			const nextPhase: Stripe.SubscriptionSchedule.Phase = {
+				...DEFAULT_PHASE_PROPERTIES,
+				start_date: current_day_ends_at,
+				end_date: subscription_renews_at,
+				items: [
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price1",
+						price: "price1",
+						quantity: 10,
+					},
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price2",
+						price: "price2",
+						quantity: 3,
+					},
+				],
+			};
+
+			const updatedPhases = scheduleSubscriptionUpdates(
+				buildSchedule([currentPhase, nextPhase]),
+				{
+					propertyUpdates: [
+						{
+							itemIndex: 0,
+							quantity: 20,
+							scheduled_at: subscription_renews_at,
+						},
+					],
+				},
+			);
+
+			expect(updatedPhases).toHaveLength(2);
+			assertPhasesAreContinuous(updatedPhases);
+
+			expect(updatedPhases[0].items).toHaveLength(2);
+			expect(updatedPhases[0].items[0].quantity).toBe(10);
+			expect(updatedPhases[0].items[1].quantity).toBe(3);
+			expect(updatedPhases[0].start_date).toBe(subscription_started_at);
+			expect(updatedPhases[0].end_date).toBe(subscription_renews_at);
+
+			expect(updatedPhases[1].items).toHaveLength(2);
+			expect(updatedPhases[1].items[0].plan).toBe("price1");
+			expect(updatedPhases[1].items[0].quantity).toBe(20);
+			expect(updatedPhases[1].items[1].plan).toBe("price2");
+			expect(updatedPhases[1].items[1].quantity).toBe(3);
+		});
+
+		it("Throws when current and future phases have different item counts", () => {
+			const t0 = getUnixTime(addDays(new Date(), -20));
+			const t1 = getUnixTime(addDays(new Date(), 5));
+			const t2 = getUnixTime(addDays(new Date(), 10));
+			const currentPhase: Stripe.SubscriptionSchedule.Phase = {
+				...DEFAULT_PHASE_PROPERTIES,
+				start_date: t0,
+				end_date: t1,
+				items: [
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price1",
+						price: "price1",
+						quantity: 10,
+					},
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price2",
+						price: "price2",
+						quantity: 3,
+					},
+				],
+			};
+			const nextPhase: Stripe.SubscriptionSchedule.Phase = {
+				...DEFAULT_PHASE_PROPERTIES,
+				start_date: t1,
+				end_date: t2,
+				items: [
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price1",
+						price: "price1",
+						quantity: 10,
+					},
+				],
+			};
+
+			expect(() =>
+				scheduleSubscriptionUpdates(
+					buildSchedule([currentPhase, nextPhase]),
+					{},
+				),
+			).toThrow();
+		});
+
+		it("Ignores past phases when checking item count consistency", () => {
+			const t_past_start = getUnixTime(addDays(new Date(), -40));
+			const t_past_end = getUnixTime(addDays(new Date(), -20));
+			const t_now = getUnixTime(addDays(new Date(), -20));
+			const t_future = getUnixTime(addDays(new Date(), 10));
+			const pastPhase: Stripe.SubscriptionSchedule.Phase = {
+				...DEFAULT_PHASE_PROPERTIES,
+				start_date: t_past_start,
+				end_date: t_past_end,
+				items: [
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price1",
+						price: "price1",
+						quantity: 1,
+					},
+				],
+			};
+			const currentPhase: Stripe.SubscriptionSchedule.Phase = {
+				...DEFAULT_PHASE_PROPERTIES,
+				start_date: t_now,
+				end_date: t_future,
+				items: [
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price1",
+						price: "price1",
+						quantity: 10,
+					},
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price2",
+						price: "price2",
+						quantity: 3,
+					},
+				],
+			};
+
+			expect(() =>
+				scheduleSubscriptionUpdates(
+					buildSchedule([pastPhase, currentPhase]),
+					{},
+				),
+			).not.toThrow();
+		});
+
+		it("Throws when itemIndex is out of bounds for current and future phases", () => {
+			const t0 = getUnixTime(addDays(new Date(), -20));
+			const t_renew = getUnixTime(addDays(new Date(), 10));
+			const currentPhase: Stripe.SubscriptionSchedule.Phase = {
+				...DEFAULT_PHASE_PROPERTIES,
+				start_date: t0,
+				end_date: t_renew,
+				items: [
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price1",
+						price: "price1",
+						quantity: 10,
+					},
+					{
+						...DEFAULT_ITEM_PROPERTIES,
+						plan: "price2",
+						price: "price2",
+						quantity: 3,
+					},
+				],
+			};
+
+			expect(() =>
+				scheduleSubscriptionUpdates(buildSchedule([currentPhase]), {
+					propertyUpdates: [
+						{
+							itemIndex: 2,
+							quantity: 6,
+							scheduled_at: t_renew,
+						},
+					],
+				}),
+			).toThrow();
+		});
+	});
+
 	it("Handles cancellation after the end of the existing phase", () => {
 		const subscription_started_at = getUnixTime(addDays(new Date(), -20));
 		const subscription_renews_at = getUnixTime(addDays(new Date(), 10));
