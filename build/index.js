@@ -154,31 +154,48 @@ function convertPhaseItemToUpdateParams(item) {
 }
 
 // src/utils.ts
+function getItemPriceId(item) {
+  const { plan, price } = item;
+  const priceId = typeof price === "string" ? price : price?.id;
+  const planId = typeof plan === "string" ? plan : plan?.id;
+  return priceId ?? planId;
+}
 function getPhaseUpdateParamsFromExistingPhase(phase, {
   propertiesToApply,
   startDate,
   endDate
 } = {}) {
-  if (phase.items.length > 1) {
-    throw new Error(`We don't support multi-items phases yet`);
-  }
   const phaseUpdateParams = convertPhaseToPhaseUpdateParams(phase);
-  const phaseItemUpdateParams = convertPhaseItemToUpdateParams(phase.items[0]);
-  const { price, quantity, proration_behavior } = propertiesToApply ?? {};
+  const { itemIndex, price, quantity, proration_behavior } = propertiesToApply ?? {};
+  const hasItemLevelUpdate = price !== undefined || quantity !== undefined;
+  if (hasItemLevelUpdate && phase.items.length > 1 && itemIndex === undefined) {
+    throw new Error(`Phase has multiple items but no itemIndex was provided to target the update`);
+  }
+  if (itemIndex !== undefined && hasItemLevelUpdate) {
+    if (itemIndex < 0 || itemIndex >= phase.items.length) {
+      throw new Error(`itemIndex ${itemIndex} is out of bounds for phase with ${phase.items.length} item(s)`);
+    }
+  }
+  const items = phase.items.map((item, index) => {
+    const itemParams = convertPhaseItemToUpdateParams(item);
+    const isTargetItem = phase.items.length === 1 && itemIndex === undefined ? true : index === itemIndex;
+    if (!isTargetItem) {
+      return itemParams;
+    }
+    return {
+      ...itemParams,
+      ...price && {
+        plan: price,
+        price
+      },
+      ...quantity !== undefined && {
+        quantity
+      }
+    };
+  });
   const result = {
     ...phaseUpdateParams,
-    items: [
-      {
-        ...phaseItemUpdateParams,
-        ...price && {
-          plan: price,
-          price
-        },
-        ...quantity !== undefined && {
-          quantity
-        }
-      }
-    ],
+    items,
     ...startDate && { start_date: startDate },
     end_date: endDate === null ? undefined : endDate ?? phase.end_date,
     ...proration_behavior && { proration_behavior }
@@ -196,6 +213,29 @@ function assertPhasesAreContinuous(phases) {
     lastPhaseEndDate = phase.end_date;
   }
 }
+function assertCurrentAndFuturePhasesHaveConsistentItemCount(phases) {
+  const now = Date.now() / 1000;
+  const relevantPhases = phases.filter((phase) => !phase.end_date || phase.end_date > now);
+  if (relevantPhases.length === 0) {
+    return;
+  }
+  const expectedCount = relevantPhases[0].items.length;
+  for (const phase of relevantPhases) {
+    if (phase.items.length !== expectedCount) {
+      throw new Error(`Current and future phases must all have the same number of items (expected ${expectedCount}, got ${phase.items.length})`);
+    }
+  }
+}
+function assertItemIndexInBounds(propertyUpdates, itemCount) {
+  for (const update of propertyUpdates) {
+    if (update.itemIndex === undefined) {
+      continue;
+    }
+    if (update.itemIndex < 0 || update.itemIndex >= itemCount) {
+      throw new Error(`itemIndex ${update.itemIndex} is out of bounds for phases with ${itemCount} item(s)`);
+    }
+  }
+}
 function assertHasNoPastPhases(phases) {
   for (const phase of phases) {
     if (phase.end_date && (phase.end_date === "now" || phase.end_date < new Date().getTime() / 1000)) {
@@ -203,11 +243,31 @@ function assertHasNoPastPhases(phases) {
     }
   }
 }
+function haveSameItems(a, b) {
+  if (a.items.length !== b.items.length) {
+    return false;
+  }
+  const bQuantitiesByPriceId = new Map;
+  for (const itemB of b.items) {
+    const priceId = getItemPriceId(itemB);
+    if (priceId === undefined) {
+      return false;
+    }
+    bQuantitiesByPriceId.set(priceId, itemB.quantity);
+  }
+  return a.items.every((itemA) => {
+    const priceId = getItemPriceId(itemA);
+    if (priceId === undefined || !bQuantitiesByPriceId.has(priceId)) {
+      return false;
+    }
+    return bQuantitiesByPriceId.get(priceId) === itemA.quantity;
+  });
+}
 function mergeAdjacentPhaseUpdates(phases) {
   const mergedPhases = [];
   let previousPhase;
   for (const phase of phases) {
-    if (previousPhase && previousPhase.items[0].plan === phase.items[0].plan && previousPhase.items[0].price === phase.items[0].price && previousPhase.items[0].quantity === phase.items[0].quantity) {
+    if (previousPhase && haveSameItems(previousPhase, phase)) {
       previousPhase.end_date = phase.end_date;
     } else {
       mergedPhases.push(phase);
@@ -223,19 +283,40 @@ function compilePropertyUpdates(propertyUpdates) {
   const result = propertyUpdates.reduce((acc, propertyUpdate) => ({ ...acc, ...propertyUpdate }), propertyUpdates[0]);
   return result;
 }
+function compilePropertyUpdatesPerItem(propertyUpdates) {
+  const groups = new Map;
+  for (const update of propertyUpdates) {
+    const existing = groups.get(update.itemIndex);
+    if (existing) {
+      existing.push(update);
+    } else {
+      groups.set(update.itemIndex, [update]);
+    }
+  }
+  return [...groups.values()].map((group) => compilePropertyUpdates(group));
+}
 function applyPropertyUpdatesOnNewPhases(phasesList, propertyUpdates) {
-  let compiledPropertyUpdates = {
-    scheduled_at: 0
-  };
+  const activePropertiesPerItem = new Map;
   return phasesList.map((phase) => {
-    const propertyUpdatesScheduledForThisPhase = propertyUpdates.filter((propertyUpdate) => propertyUpdate.scheduled_at === phase.start_date);
-    compiledPropertyUpdates = compilePropertyUpdates([
-      compiledPropertyUpdates,
-      ...propertyUpdatesScheduledForThisPhase
-    ]);
-    return getPhaseUpdateParamsFromExistingPhase(phase, {
-      propertiesToApply: compiledPropertyUpdates
-    });
+    const updatesForThisPhase = propertyUpdates.filter((propertyUpdate) => propertyUpdate.scheduled_at === phase.start_date);
+    const compiledUpdatesForThisPhase = compilePropertyUpdatesPerItem(updatesForThisPhase);
+    for (const update of compiledUpdatesForThisPhase) {
+      const existing = activePropertiesPerItem.get(update.itemIndex) ?? {
+        scheduled_at: 0,
+        itemIndex: update.itemIndex
+      };
+      activePropertiesPerItem.set(update.itemIndex, {
+        ...existing,
+        ...update
+      });
+    }
+    let updatedPhase = phase;
+    for (const propertiesToApply of activePropertiesPerItem.values()) {
+      updatedPhase = getPhaseUpdateParamsFromExistingPhase(updatedPhase, {
+        propertiesToApply
+      });
+    }
+    return updatedPhase;
   });
 }
 function buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases, propertyUpdates, cancelAt, end_behavior) {
@@ -291,17 +372,32 @@ function scheduleSubscriptionUpdates(schedule, {
   cancelAt
 }) {
   const { phases: existingPhases, end_behavior } = schedule;
-  if ((!propertyUpdates || propertyUpdates.length === 0) && !cancelAt) {
+  if (existingPhases) {
+    assertCurrentAndFuturePhasesHaveConsistentItemCount(existingPhases);
+  }
+  const now = Date.now() / 1000;
+  const firstRelevantPhase = existingPhases?.find((phase) => !phase.end_date || phase.end_date > now);
+  const normalizedPropertyUpdates = propertyUpdates?.map((update) => {
+    if (update.itemIndex !== undefined) {
+      return { ...update, itemIndex: update.itemIndex };
+    }
+    if (firstRelevantPhase && firstRelevantPhase.items.length > 1) {
+      throw new Error(`Phase has multiple items but no itemIndex was provided to target the update`);
+    }
+    return { ...update, itemIndex: 0 };
+  });
+  if (firstRelevantPhase && normalizedPropertyUpdates?.length) {
+    assertItemIndexInBounds(normalizedPropertyUpdates, firstRelevantPhase.items.length);
+  }
+  if (!normalizedPropertyUpdates?.length && !cancelAt) {
     if (!existingPhases) {
       throw new Error("Nothing to schedule and no existing phases");
     }
     return existingPhases.map((phase) => getPhaseUpdateParamsFromExistingPhase(phase));
   }
-  if (propertyUpdates) {
-    propertyUpdates.sort((a, b) => a.scheduled_at - b.scheduled_at);
-  }
-  const newPhases = buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases ?? [], propertyUpdates ?? [], cancelAt, end_behavior);
-  const phasesWithUpdatedProperties = applyPropertyUpdatesOnNewPhases(newPhases, propertyUpdates ?? []);
+  normalizedPropertyUpdates?.sort((a, b) => a.scheduled_at - b.scheduled_at);
+  const newPhases = buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases ?? [], normalizedPropertyUpdates ?? [], cancelAt, end_behavior);
+  const phasesWithUpdatedProperties = applyPropertyUpdatesOnNewPhases(newPhases, normalizedPropertyUpdates ?? []);
   const filteredPhases = removePastPhases(phasesWithUpdatedProperties);
   const finalPhases = mergeAdjacentPhaseUpdates(filteredPhases);
   assertHasNoPastPhases(finalPhases);
