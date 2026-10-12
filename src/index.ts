@@ -10,7 +10,10 @@ import {
 	mergeAdjacentPhaseUpdates,
 	removePastPhases,
 } from "./utils";
+import { type ActiveDiscount, resolvePhaseDiscounts } from "./discounts";
 import type { ScheduledPropertyUpdates } from "./types";
+
+export type { ActiveDiscount };
 
 /**
  * Schedules a value change for a property (quantity, price...) at a specific time.
@@ -21,6 +24,7 @@ import type { ScheduledPropertyUpdates } from "./types";
  *
  * @param existingPhases Array of preexisting phases in the schedule if any. Pass an empty array if there aren't any.
  * @param propertyUpdates Array of ScheduledPropertyUpdates objects that represent the property updates to apply.
+ * @param activeDiscounts The subscription's current `discounts`. Phases cut from a phase that already started reference them instead of redeeming the phase's coupons again.
  * @returns Array of SubscriptionScheduleUpdateParams.Phase objects that represent the updated phases and can be passed to stripe.subscriptionSchedules.update
  */
 export function scheduleSubscriptionUpdates(
@@ -28,9 +32,11 @@ export function scheduleSubscriptionUpdates(
 	{
 		propertyUpdates,
 		cancelAt,
+		activeDiscounts,
 	}: {
 		propertyUpdates?: ScheduledPropertyUpdates[];
 		cancelAt?: number;
+		activeDiscounts: ActiveDiscount[];
 	},
 ): Stripe.SubscriptionScheduleUpdateParams.Phase[] {
 	const { phases: existingPhases, end_behavior } = schedule;
@@ -73,7 +79,9 @@ export function scheduleSubscriptionUpdates(
 			throw new Error("Nothing to schedule and no existing phases");
 		}
 		return existingPhases.map((phase) =>
-			getPhaseUpdateParamsFromExistingPhase(phase),
+			getPhaseUpdateParamsFromExistingPhase(phase, {
+				discounts: resolvePhaseDiscounts(phase, activeDiscounts),
+			}),
 		);
 	}
 
@@ -87,6 +95,7 @@ export function scheduleSubscriptionUpdates(
 		normalizedPropertyUpdates ?? [],
 		cancelAt,
 		end_behavior,
+		activeDiscounts,
 	);
 
 	// Step 2: Apply property changes on the correct phases

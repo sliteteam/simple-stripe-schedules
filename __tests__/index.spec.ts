@@ -83,6 +83,7 @@ describe("scheduleSubscriptionUpdates", () => {
 		const updatedPhases = scheduleSubscriptionUpdates(
 			buildSchedule(existingPhases),
 			{
+				activeDiscounts: [],
 				propertyUpdates: [
 					{
 						quantity: 6,
@@ -148,6 +149,7 @@ describe("scheduleSubscriptionUpdates", () => {
 		const updatedPhases = scheduleSubscriptionUpdates(
 			buildSchedule(existingPhases),
 			{
+				activeDiscounts: [],
 				propertyUpdates: [
 					{
 						quantity: 6,
@@ -198,6 +200,7 @@ describe("scheduleSubscriptionUpdates", () => {
 		const updatedPhases = scheduleSubscriptionUpdates(
 			buildSchedule(existingPhases),
 			{
+				activeDiscounts: [],
 				propertyUpdates: [
 					{
 						quantity: 6,
@@ -263,6 +266,7 @@ describe("scheduleSubscriptionUpdates", () => {
 		const updatedPhases = scheduleSubscriptionUpdates(
 			buildSchedule(existingPhases),
 			{
+				activeDiscounts: [],
 				propertyUpdates: [
 					{
 						quantity: 6,
@@ -315,6 +319,7 @@ describe("scheduleSubscriptionUpdates", () => {
 			scheduleSubscriptionUpdates(
 				buildSchedule(existingPhases),
 				{
+					activeDiscounts: [],
 					propertyUpdates: [
 						{
 							quantity: 6,
@@ -330,6 +335,7 @@ describe("scheduleSubscriptionUpdates", () => {
 			scheduleSubscriptionUpdates(
 				buildSchedule(existingPhases),
 				{
+					activeDiscounts: [],
 					propertyUpdates: [
 						{
 							quantity: 6,
@@ -387,6 +393,7 @@ describe("scheduleSubscriptionUpdates", () => {
 		const updatedPhases = scheduleSubscriptionUpdates(
 			buildSchedule(existingPhases),
 			{
+				activeDiscounts: [],
 				propertyUpdates: [
 					{
 						quantity: 10,
@@ -435,6 +442,7 @@ describe("scheduleSubscriptionUpdates", () => {
 		const updatedPhases = scheduleSubscriptionUpdates(
 			buildSchedule(existingPhases),
 			{
+				activeDiscounts: [],
 				propertyUpdates: [
 					{
 						quantity: 10,
@@ -497,6 +505,7 @@ describe("scheduleSubscriptionUpdates", () => {
 		const updatedPhases = scheduleSubscriptionUpdates(
 			buildSchedule(existingPhases),
 			{
+				activeDiscounts: [],
 				propertyUpdates: [
 					{
 						quantity: 15,
@@ -550,6 +559,7 @@ describe("scheduleSubscriptionUpdates", () => {
 		const updatedPhases = scheduleSubscriptionUpdates(
 			buildSchedule(existingPhases),
 			{
+				activeDiscounts: [],
 				propertyUpdates: [
 					{
 						quantity: 15,
@@ -597,6 +607,7 @@ describe("scheduleSubscriptionUpdates", () => {
 		const updatedPhases = scheduleSubscriptionUpdates(
 			buildSchedule(existingPhases),
 			{
+				activeDiscounts: [],
 				cancelAt: current_day_ends_at,
 			},
 		);
@@ -631,6 +642,7 @@ describe("scheduleSubscriptionUpdates", () => {
 		const updatedPhases = scheduleSubscriptionUpdates(
 			buildSchedule(existingPhases),
 			{
+				activeDiscounts: [],
 				propertyUpdates: [
 					{
 						quantity: 15,
@@ -671,6 +683,7 @@ describe("scheduleSubscriptionUpdates", () => {
 		const updatedPhases = scheduleSubscriptionUpdates(
 			buildSchedule([existingPhase], "cancel"),
 			{
+				activeDiscounts: [],
 				propertyUpdates: [
 					{
 						quantity: 36,
@@ -718,6 +731,7 @@ describe("scheduleSubscriptionUpdates", () => {
 
 			expect(() =>
 				scheduleSubscriptionUpdates(buildSchedule([currentPhase]), {
+					activeDiscounts: [],
 					propertyUpdates: [
 						{
 							quantity: 6,
@@ -748,6 +762,7 @@ describe("scheduleSubscriptionUpdates", () => {
 			const updatedPhases = scheduleSubscriptionUpdates(
 				buildSchedule([currentPhase]),
 				{
+					activeDiscounts: [],
 					propertyUpdates: [
 						{
 							quantity: 6,
@@ -786,6 +801,7 @@ describe("scheduleSubscriptionUpdates", () => {
 
 			expect(() =>
 				scheduleSubscriptionUpdates(buildSchedule([currentPhase]), {
+					activeDiscounts: [],
 					cancelAt: cancel_at,
 				}),
 			).not.toThrow();
@@ -817,6 +833,7 @@ describe("scheduleSubscriptionUpdates", () => {
 			const updatedPhases = scheduleSubscriptionUpdates(
 				buildSchedule([currentPhase]),
 				{
+					activeDiscounts: [],
 					propertyUpdates: [
 						{
 							itemIndex: 0,
@@ -872,6 +889,7 @@ describe("scheduleSubscriptionUpdates", () => {
 			const updatedPhases = scheduleSubscriptionUpdates(
 				buildSchedule([currentPhase]),
 				{
+					activeDiscounts: [],
 					propertyUpdates: [
 						{
 							itemIndex: 1,
@@ -925,6 +943,7 @@ describe("scheduleSubscriptionUpdates", () => {
 			const updatedPhases = scheduleSubscriptionUpdates(
 				buildSchedule([currentPhase]),
 				{
+					activeDiscounts: [],
 					propertyUpdates: [
 						{
 							itemIndex: 0,
@@ -981,6 +1000,7 @@ describe("scheduleSubscriptionUpdates", () => {
 			const updatedPhases = scheduleSubscriptionUpdates(
 				buildSchedule([currentPhase]),
 				{
+					activeDiscounts: [],
 					propertyUpdates: [
 						{
 							itemIndex: 0,
@@ -1043,6 +1063,7 @@ describe("scheduleSubscriptionUpdates", () => {
 
 			expect(() =>
 				scheduleSubscriptionUpdates(buildSchedule([currentPhase]), {
+					activeDiscounts: [],
 					propertyUpdates: [
 						{
 							itemIndex: 5,
@@ -1074,6 +1095,7 @@ describe("scheduleSubscriptionUpdates", () => {
 			const updatedPhases = scheduleSubscriptionUpdates(
 				buildSchedule([currentPhase]),
 				{
+					activeDiscounts: [],
 					propertyUpdates: [
 						{
 							itemIndex: 0,
@@ -1137,6 +1159,7 @@ describe("scheduleSubscriptionUpdates", () => {
 			const updatedPhases = scheduleSubscriptionUpdates(
 				buildSchedule([currentPhase, nextPhase]),
 				{
+					activeDiscounts: [],
 					propertyUpdates: [
 						{
 							itemIndex: 0,
@@ -1203,7 +1226,7 @@ describe("scheduleSubscriptionUpdates", () => {
 			expect(() =>
 				scheduleSubscriptionUpdates(
 					buildSchedule([currentPhase, nextPhase]),
-					{},
+					{ activeDiscounts: [] },
 				),
 			).toThrow();
 		});
@@ -1249,7 +1272,7 @@ describe("scheduleSubscriptionUpdates", () => {
 			expect(() =>
 				scheduleSubscriptionUpdates(
 					buildSchedule([pastPhase, currentPhase]),
-					{},
+					{ activeDiscounts: [] },
 				),
 			).not.toThrow();
 		});
@@ -1279,6 +1302,7 @@ describe("scheduleSubscriptionUpdates", () => {
 
 			expect(() =>
 				scheduleSubscriptionUpdates(buildSchedule([currentPhase]), {
+					activeDiscounts: [],
 					propertyUpdates: [
 						{
 							itemIndex: 2,
@@ -1312,6 +1336,7 @@ describe("scheduleSubscriptionUpdates", () => {
 		const updatedPhases = scheduleSubscriptionUpdates(
 			buildSchedule(existingPhases),
 			{
+				activeDiscounts: [],
 				propertyUpdates: [
 					{
 						quantity: 15,
