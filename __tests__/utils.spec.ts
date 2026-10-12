@@ -215,6 +215,62 @@ describe("mergeAdjacentPhaseUpdates", () => {
     expect(mergedPhases[1].start_date).toBe(2);
     expect(mergedPhases[1].end_date).toBeUndefined();
   });
+
+  it("does not merge adjacent phases with different discounts", () => {
+    const phase1: Stripe.SubscriptionScheduleUpdateParams.Phase = {
+      items: [{ plan: "price1", quantity: 10 }],
+      discounts: [],
+      start_date: 1,
+      end_date: 2,
+    };
+    const phase2: Stripe.SubscriptionScheduleUpdateParams.Phase = {
+      items: [{ plan: "price1", quantity: 10 }],
+      discounts: [{ coupon: "coupon1" }],
+      start_date: 2,
+      end_date: 3,
+    };
+
+    const mergedPhases = mergeAdjacentPhaseUpdates([phase1, phase2]);
+
+    expect(mergedPhases).toHaveLength(2);
+    expect(mergedPhases[1].discounts).toEqual([{ coupon: "coupon1" }]);
+  });
+
+  it("merges adjacent phases listing the same discounts in a different order", () => {
+    const phase1: Stripe.SubscriptionScheduleUpdateParams.Phase = {
+      items: [{ plan: "price1", quantity: 10 }],
+      discounts: [{ discount: "di_1" }, { coupon: "coupon1" }],
+      start_date: 1,
+      end_date: 2,
+    };
+    const phase2: Stripe.SubscriptionScheduleUpdateParams.Phase = {
+      items: [{ plan: "price1", quantity: 10 }],
+      discounts: [{ coupon: "coupon1" }, { discount: "di_1" }],
+      start_date: 2,
+      end_date: 3,
+    };
+
+    const mergedPhases = mergeAdjacentPhaseUpdates([phase1, phase2]);
+
+    expect(mergedPhases).toHaveLength(1);
+    expect(mergedPhases[0].end_date).toBe(3);
+  });
+
+  it("treats a phase without discounts like a phase with an empty discount list", () => {
+    const phase1: Stripe.SubscriptionScheduleUpdateParams.Phase = {
+      items: [{ plan: "price1", quantity: 10 }],
+      start_date: 1,
+      end_date: 2,
+    };
+    const phase2: Stripe.SubscriptionScheduleUpdateParams.Phase = {
+      items: [{ plan: "price1", quantity: 10 }],
+      discounts: [],
+      start_date: 2,
+      end_date: 3,
+    };
+
+    expect(mergeAdjacentPhaseUpdates([phase1, phase2])).toHaveLength(1);
+  });
 });
 
 describe("removePastPhases", () => {

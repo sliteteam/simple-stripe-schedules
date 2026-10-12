@@ -3,6 +3,11 @@ import {
 	convertPhaseItemToUpdateParams,
 	convertPhaseToPhaseUpdateParams,
 } from "./conversion";
+import {
+	type ActiveDiscount,
+	haveSameDiscounts,
+	resolvePhaseDiscounts,
+} from "./discounts";
 import type { ScheduledPropertyUpdates } from "./types";
 
 function getItemPriceId(
@@ -24,10 +29,12 @@ export function getPhaseUpdateParamsFromExistingPhase(
 		propertiesToApply,
 		startDate,
 		endDate,
+		discounts,
 	}: {
 		propertiesToApply?: Omit<ScheduledPropertyUpdates, "scheduled_at">;
 		startDate?: number;
 		endDate?: number | null;
+		discounts?: Stripe.SubscriptionScheduleUpdateParams.Phase.Discount[];
 	} = {},
 ): Stripe.SubscriptionScheduleUpdateParams.Phase {
 	const phaseUpdateParams = convertPhaseToPhaseUpdateParams(phase);
@@ -78,6 +85,7 @@ export function getPhaseUpdateParamsFromExistingPhase(
 		...(startDate && { start_date: startDate }),
 		end_date: endDate === null ? undefined : (endDate ?? phase.end_date),
 		...(proration_behavior && { proration_behavior }),
+		...(discounts && { discounts }),
 	};
 	return result;
 }
@@ -189,7 +197,11 @@ export function mergeAdjacentPhaseUpdates(
 	const mergedPhases: Stripe.SubscriptionScheduleUpdateParams.Phase[] = [];
 	let previousPhase: Stripe.SubscriptionScheduleUpdateParams.Phase | undefined;
 	for (const phase of phases) {
-		if (previousPhase && haveSameItems(previousPhase, phase)) {
+		if (
+			previousPhase &&
+			haveSameItems(previousPhase, phase) &&
+			haveSameDiscounts(previousPhase, phase)
+		) {
 			previousPhase.end_date = phase.end_date;
 		} else {
 			mergedPhases.push(phase);
@@ -289,8 +301,9 @@ export function applyPropertyUpdatesOnNewPhases(
 export function buildPhaseListFromExistingPhasesAndPropertyUpdates(
 	existingPhases: Stripe.SubscriptionSchedule.Phase[],
 	propertyUpdates: ScheduledPropertyUpdates[],
-	cancelAt?: number,
-	end_behavior?: Stripe.SubscriptionSchedule.EndBehavior | null,
+	cancelAt: number | undefined,
+	end_behavior: Stripe.SubscriptionSchedule.EndBehavior | null | undefined,
+	activeDiscounts: ActiveDiscount[],
 ) {
 	const newPhases: Stripe.SubscriptionScheduleUpdateParams.Phase[] = [];
 
@@ -347,10 +360,15 @@ export function buildPhaseListFromExistingPhasesAndPropertyUpdates(
 		if (!latestPrecedingPhase) {
 			throw new Error(`No previous phase to base the new phase on`);
 		}
+		const discounts = resolvePhaseDiscounts(
+			latestPrecedingPhase,
+			activeDiscounts,
+		);
 		newPhases.push(
 			getPhaseUpdateParamsFromExistingPhase(latestPrecedingPhase, {
 				startDate: newPhaseBounds.start_date,
 				endDate: newPhaseBounds.end_date,
+				discounts,
 			}),
 		);
 
@@ -370,6 +388,7 @@ export function buildPhaseListFromExistingPhasesAndPropertyUpdates(
 				getPhaseUpdateParamsFromExistingPhase(latestPrecedingPhase, {
 					startDate: newPhaseBounds.end_date,
 					endDate: null,
+					discounts,
 				}),
 			);
 		}

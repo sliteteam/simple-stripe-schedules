@@ -55,6 +55,7 @@ describe(`Updating quantity at the end of the day and then at renewal (same quan
     const updatedPhases = scheduleSubscriptionUpdates(
       buildSchedule(EXISTING_PHASES),
       {
+        activeDiscounts: [],
         propertyUpdates: propertyChanges,
       },
     );
@@ -117,6 +118,7 @@ describe(`Updating quantity at the end of the day and then at renewal (different
     const updatedPhases = scheduleSubscriptionUpdates(
       buildSchedule(EXISTING_PHASES),
       {
+        activeDiscounts: [],
         propertyUpdates: propertyChanges,
       },
     );

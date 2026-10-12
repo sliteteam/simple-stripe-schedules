@@ -1,4 +1,5 @@
 import type Stripe from "stripe";
+import { convertPhaseDiscountsToUpdateParams } from "./discounts";
 
 /**
  * Returns a new UpdateParams.Phase pbject replicating the input phase
@@ -32,7 +33,6 @@ export function convertPhaseToPhaseUpdateParams(
     ...restOfFields
   } = phase;
 
-  const couponId = typeof coupon === "string" ? coupon : coupon?.id;
   const defaultPaymentMethodId =
     typeof default_payment_method === "string"
       ? default_payment_method
@@ -42,14 +42,11 @@ export function convertPhaseToPhaseUpdateParams(
     default_tax_rates.map((taxRate) =>
       typeof taxRate === "string" ? taxRate : taxRate.id
     );
-  const newDiscounts =
-    discounts && discounts.filter((discount) => typeof discount === "string");
   const newOnBehalfOf =
     typeof on_behalf_of === "string" ? on_behalf_of : on_behalf_of?.id;
 
   const output: Omit<Stripe.SubscriptionScheduleUpdateParams.Phase, "items"> = {
     ...restOfFields,
-    coupon: couponId,
     add_invoice_items:
       add_invoice_items &&
       convertAddInvoiceItemsToUpdateParams(add_invoice_items),
@@ -63,7 +60,7 @@ export function convertPhaseToPhaseUpdateParams(
     collection_method: collection_method ?? undefined,
     default_payment_method: defaultPaymentMethodId,
     default_tax_rates: defaultTaxRateIds,
-    discounts: newDiscounts,
+    discounts: convertPhaseDiscountsToUpdateParams(phase),
     invoice_settings:
       (invoice_settings &&
         convertInvoiceSettingsToUpdateParams(invoice_settings)) ??
