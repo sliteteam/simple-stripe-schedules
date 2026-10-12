@@ -33,6 +33,46 @@ __export(exports_src, {
 });
 module.exports = __toCommonJS(exports_src);
 
+// src/discounts.ts
+function getId(value) {
+  return typeof value === "string" ? value : value?.id;
+}
+function convertDiscountToUpdateParams(discount) {
+  const coupon = getId(discount.coupon);
+  const discountId = getId(discount.discount);
+  const promotionCode = getId(discount.promotion_code);
+  return {
+    ...coupon && { coupon },
+    ...discountId && { discount: discountId },
+    ...promotionCode && { promotion_code: promotionCode }
+  };
+}
+function convertPhaseDiscountsToUpdateParams(phase) {
+  const declaredDiscounts = typeof phase.discounts === "string" ? [] : phase.discounts ?? [];
+  const discounts = declaredDiscounts.map(convertDiscountToUpdateParams);
+  const legacyCoupon = getId(phase.coupon);
+  const isLegacyCouponListed = discounts.some((discount) => discount.coupon === legacyCoupon);
+  if (legacyCoupon && !isLegacyCouponListed) {
+    discounts.push({ coupon: legacyCoupon });
+  }
+  return discounts;
+}
+function resolvePhaseDiscounts(phase, activeDiscounts) {
+  const activeDiscountIds = activeDiscounts.map(getId);
+  const hasStarted = phase.start_date === "now" || phase.start_date !== undefined && phase.start_date <= Date.now() / 1000;
+  if (hasStarted) {
+    return activeDiscountIds.map((discount) => ({ discount }));
+  }
+  return convertPhaseDiscountsToUpdateParams(phase).filter((discount) => discount.discount === undefined || activeDiscountIds.includes(discount.discount));
+}
+function discountKey(discount) {
+  return [discount.coupon, discount.discount, discount.promotion_code].join(":");
+}
+function haveSameDiscounts(a, b) {
+  const keysOf = (phase) => (typeof phase.discounts === "string" ? [] : phase.discounts ?? []).map(discountKey).sort().join("|");
+  return keysOf(a) === keysOf(b);
+}
+
 // src/conversion.ts
 function convertPhaseToPhaseUpdateParams(phase) {
   const {
@@ -54,14 +94,11 @@ function convertPhaseToPhaseUpdateParams(phase) {
     trial_end,
     ...restOfFields
   } = phase;
-  const couponId = typeof coupon === "string" ? coupon : coupon?.id;
   const defaultPaymentMethodId = typeof default_payment_method === "string" ? default_payment_method : default_payment_method?.id;
   const defaultTaxRateIds = default_tax_rates && default_tax_rates.map((taxRate) => typeof taxRate === "string" ? taxRate : taxRate.id);
-  const newDiscounts = discounts && discounts.filter((discount) => typeof discount === "string");
   const newOnBehalfOf = typeof on_behalf_of === "string" ? on_behalf_of : on_behalf_of?.id;
   const output = {
     ...restOfFields,
-    coupon: couponId,
     add_invoice_items: add_invoice_items && convertAddInvoiceItemsToUpdateParams(add_invoice_items),
     application_fee_percent: application_fee_percent ?? undefined,
     automatic_tax: automatic_tax && convertAutomaticTaxToUpdateParams(automatic_tax),
@@ -70,7 +107,7 @@ function convertPhaseToPhaseUpdateParams(phase) {
     collection_method: collection_method ?? undefined,
     default_payment_method: defaultPaymentMethodId,
     default_tax_rates: defaultTaxRateIds,
-    discounts: newDiscounts,
+    discounts: convertPhaseDiscountsToUpdateParams(phase),
     invoice_settings: (invoice_settings && convertInvoiceSettingsToUpdateParams(invoice_settings)) ?? undefined,
     metadata: metadata ?? undefined,
     on_behalf_of: newOnBehalfOf,
@@ -163,7 +200,8 @@ function getItemPriceId(item) {
 function getPhaseUpdateParamsFromExistingPhase(phase, {
   propertiesToApply,
   startDate,
-  endDate
+  endDate,
+  discounts
 } = {}) {
   const phaseUpdateParams = convertPhaseToPhaseUpdateParams(phase);
   const { itemIndex, price, quantity, proration_behavior } = propertiesToApply ?? {};
@@ -198,7 +236,8 @@ function getPhaseUpdateParamsFromExistingPhase(phase, {
     items,
     ...startDate && { start_date: startDate },
     end_date: endDate === null ? undefined : endDate ?? phase.end_date,
-    ...proration_behavior && { proration_behavior }
+    ...proration_behavior && { proration_behavior },
+    ...discounts && { discounts }
   };
   return result;
 }
@@ -267,7 +306,7 @@ function mergeAdjacentPhaseUpdates(phases) {
   const mergedPhases = [];
   let previousPhase;
   for (const phase of phases) {
-    if (previousPhase && haveSameItems(previousPhase, phase)) {
+    if (previousPhase && haveSameItems(previousPhase, phase) && haveSameDiscounts(previousPhase, phase)) {
       previousPhase.end_date = phase.end_date;
     } else {
       mergedPhases.push(phase);
@@ -319,7 +358,7 @@ function applyPropertyUpdatesOnNewPhases(phasesList, propertyUpdates) {
     return updatedPhase;
   });
 }
-function buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases, propertyUpdates, cancelAt, end_behavior) {
+function buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases, propertyUpdates, cancelAt, end_behavior, activeDiscounts) {
   const newPhases = [];
   const phaseBounds = new Set(existingPhases.reduce((acc, phase) => [...acc, phase.start_date, phase.end_date], []));
   if (cancelAt) {
@@ -348,9 +387,11 @@ function buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases, prop
     if (!latestPrecedingPhase) {
       throw new Error(`No previous phase to base the new phase on`);
     }
+    const discounts = resolvePhaseDiscounts(latestPrecedingPhase, activeDiscounts);
     newPhases.push(getPhaseUpdateParamsFromExistingPhase(latestPrecedingPhase, {
       startDate: newPhaseBounds.start_date,
-      endDate: newPhaseBounds.end_date
+      endDate: newPhaseBounds.end_date,
+      discounts
     }));
     const isLastPhase = newPhaseBounds.end_date === newPhasesBounds.at(-1);
     const isCurrentPhaseEndingWithAPropertyUpdate = propertyUpdateTimestamps.includes(newPhaseBounds.end_date);
@@ -358,7 +399,8 @@ function buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases, prop
     if (isLastPhase && isCurrentPhaseEndingWithAPropertyUpdate && !isCurrentPhaseEndingWithCancellation) {
       newPhases.push(getPhaseUpdateParamsFromExistingPhase(latestPrecedingPhase, {
         startDate: newPhaseBounds.end_date,
-        endDate: null
+        endDate: null,
+        discounts
       }));
     }
   }
@@ -369,7 +411,8 @@ function buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases, prop
 // src/index.ts
 function scheduleSubscriptionUpdates(schedule, {
   propertyUpdates,
-  cancelAt
+  cancelAt,
+  activeDiscounts
 }) {
   const { phases: existingPhases, end_behavior } = schedule;
   if (existingPhases) {
@@ -393,10 +436,12 @@ function scheduleSubscriptionUpdates(schedule, {
     if (!existingPhases) {
       throw new Error("Nothing to schedule and no existing phases");
     }
-    return existingPhases.map((phase) => getPhaseUpdateParamsFromExistingPhase(phase));
+    return existingPhases.map((phase) => getPhaseUpdateParamsFromExistingPhase(phase, {
+      discounts: resolvePhaseDiscounts(phase, activeDiscounts)
+    }));
   }
   normalizedPropertyUpdates?.sort((a, b) => a.scheduled_at - b.scheduled_at);
-  const newPhases = buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases ?? [], normalizedPropertyUpdates ?? [], cancelAt, end_behavior);
+  const newPhases = buildPhaseListFromExistingPhasesAndPropertyUpdates(existingPhases ?? [], normalizedPropertyUpdates ?? [], cancelAt, end_behavior, activeDiscounts);
   const phasesWithUpdatedProperties = applyPropertyUpdatesOnNewPhases(newPhases, normalizedPropertyUpdates ?? []);
   const filteredPhases = removePastPhases(phasesWithUpdatedProperties);
   const finalPhases = mergeAdjacentPhaseUpdates(filteredPhases);

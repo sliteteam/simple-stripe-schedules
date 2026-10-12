@@ -2,6 +2,7 @@
 
 import Stripe from 'stripe';
 
+export type ActiveDiscount = string | Pick<Stripe.Discount, "id">;
 export type ScheduledPropertyUpdates = {
 	itemIndex?: number;
 	quantity?: number;
@@ -19,11 +20,13 @@ export type ScheduledPropertyUpdates = {
  *
  * @param existingPhases Array of preexisting phases in the schedule if any. Pass an empty array if there aren't any.
  * @param propertyUpdates Array of ScheduledPropertyUpdates objects that represent the property updates to apply.
+ * @param activeDiscounts The subscription's current `discounts`. Phases cut from a phase that already started reference them instead of redeeming the phase's coupons again.
  * @returns Array of SubscriptionScheduleUpdateParams.Phase objects that represent the updated phases and can be passed to stripe.subscriptionSchedules.update
  */
-export declare function scheduleSubscriptionUpdates(schedule: Pick<Stripe.SubscriptionSchedule, "phases" | "end_behavior">, { propertyUpdates, cancelAt, }: {
+export declare function scheduleSubscriptionUpdates(schedule: Pick<Stripe.SubscriptionSchedule, "phases" | "end_behavior">, { propertyUpdates, cancelAt, activeDiscounts, }: {
 	propertyUpdates?: ScheduledPropertyUpdates[];
 	cancelAt?: number;
+	activeDiscounts: ActiveDiscount[];
 }): Stripe.SubscriptionScheduleUpdateParams.Phase[];
 
 export {};
